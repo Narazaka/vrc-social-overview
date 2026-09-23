@@ -27,12 +27,22 @@ const queue: (() => void)[] = [];
 let active = 0;
 function limited<T>(fn: () => Promise<T>): Promise<T> {
   return new Promise((resolve, reject) => {
-    queue.push(() => fn().then(resolve, reject).finally(() => { active--; next(); }));
+    queue.push(() =>
+      fn()
+        .then(resolve, reject)
+        .finally(() => {
+          active--;
+          next();
+        }),
+    );
     next();
   });
 }
 function next() {
-  while (active < 3 && queue.length) { active++; queue.shift()!(); }
+  while (active < 3 && queue.length) {
+    active++;
+    queue.shift()!();
+  }
 }
 
 async function getAll<T>(path: string): Promise<T[]> {
@@ -52,18 +62,32 @@ export const fetchInstance = (loc: string) => limited(() => get<Instance>(`/inst
 
 // フレンド以外のユーザーは currentAvatarImageUrl が返らないので iconUrl で代用する
 export function fetchOwner(id: string): Promise<Owner> {
-  if (id.startsWith('grp_')) return limited(() => get<{ name: string; iconUrl: string }>(`/groups/${id}`)).then(g => ({ name: g.name, image: g.iconUrl }));
-  return limited(() => get<{ displayName: string; iconUrl: string }>(`/users/${id}`)).then(u => ({ name: u.displayName, image: u.iconUrl }));
+  if (id.startsWith('grp_'))
+    return limited(() => get<{ name: string; iconUrl: string }>(`/groups/${id}`)).then(g => ({
+      name: g.name,
+      image: g.iconUrl,
+    }));
+  return limited(() => get<{ displayName: string; iconUrl: string }>(`/users/${id}`)).then(u => ({
+    name: u.displayName,
+    image: u.iconUrl,
+  }));
 }
 
 // 画像 API も認証必須。Cookie があるのは vrchat.com 側なのでホストを差し替える
 // 大きい画像を縮小表示するとジャギるので、/image/{file}/{version}/{size} 形式で表示サイズに近いもの（64/128/256）を取る
 export const img = (url: string | undefined, size: 64 | 128 | 256) =>
   url
-    ? url.replace('://api.vrchat.cloud/', '://vrchat.com/').replace(/\/api\/1\/(?:file|image)\/(file_[^/]+)\/(\d+)\/.*$/, `/api/1/image/$1/$2/${size}`)
+    ? url
+        .replace('://api.vrchat.cloud/', '://vrchat.com/')
+        .replace(/\/api\/1\/(?:file|image)\/(file_[^/]+)\/(\d+)\/.*$/, `/api/1/image/$1/$2/${size}`)
     : undefined;
 
-export const STATUS_COLOR: Record<string, string> = { 'join me': '#4fc3f7', active: '#66bb6a', 'ask me': '#ffa726', busy: '#ef5350' };
+export const STATUS_COLOR: Record<string, string> = {
+  'join me': '#4fc3f7',
+  active: '#66bb6a',
+  'ask me': '#ffa726',
+  busy: '#ef5350',
+};
 
 export const inWorld = (f: Friend) => f.location.startsWith('wrld_');
 export const ownerIdOf = (loc: string) => loc.match(/\(((?:usr|grp)_[^)]+)\)/)?.[1];
@@ -71,10 +95,15 @@ export const ownerIdOf = (loc: string) => loc.match(/\(((?:usr|grp)_[^)]+)\)/)?.
 // [表示名, 色分け用のキー]
 export function instanceType(loc: string): [string, string] {
   const access = loc.match(/~groupAccessType\((\w+)\)/)?.[1];
-  if (access) return [({ public: 'Group Public', plus: 'Group+', members: 'Group' } as Record<string, string>)[access] ?? 'Group', `group-${access}`];
+  if (access)
+    return [
+      ({ public: 'Group Public', plus: 'Group+', members: 'Group' } as Record<string, string>)[access] ?? 'Group',
+      `group-${access}`,
+    ];
   if (loc.includes('~hidden(')) return ['Friends+', 'friends-plus'];
   if (loc.includes('~friends(')) return ['Friends', 'friends'];
-  if (loc.includes('~private(')) return loc.includes('~canRequestInvite') ? ['Invite+', 'invite-plus'] : ['Invite', 'invite'];
+  if (loc.includes('~private('))
+    return loc.includes('~canRequestInvite') ? ['Invite+', 'invite-plus'] : ['Invite', 'invite'];
   return ['Public', 'public'];
 }
 
@@ -86,4 +115,5 @@ export function worldStatus(w: World): [string, string] | undefined {
 }
 
 // 現在人数・上限人数とも同じ尺度で絶対値を色分けし、2 人部屋や大人数のインスタンスをひと目で分かるようにする
-export const sizeClass = (n: number) => (n <= 1 ? 'n-1' : n <= 2 ? 'n-2' : n <= 4 ? 'n-4' : n < 10 ? '' : n < 30 ? 'n-10' : 'n-30');
+export const sizeClass = (n: number) =>
+  n <= 1 ? 'n-1' : n <= 2 ? 'n-2' : n <= 4 ? 'n-4' : n < 10 ? '' : n < 30 ? 'n-10' : 'n-30';

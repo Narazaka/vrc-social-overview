@@ -1,7 +1,7 @@
 {
   "name": "vrc-social-extension",
-  "private": true,
   "version": "0.0.1",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "wxt",
@@ -12,6 +12,8 @@
     "zip:firefox": "wxt zip -b firefox",
     "check": "tsc --noEmit",
     "lint": "oxlint",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
     "postinstall": "wxt prepare"
   },
   "dependencies": {
@@ -20,6 +22,7 @@
   "devDependencies": {
     "@wxt-dev/module-solid": "^1.1.4",
     "eslint-plugin-solid": "^0.18.0",
+    "oxfmt": "^0.70.0",
     "oxlint": "^1.85.0",
     "typescript": "^7.0.2",
     "wxt": "^0.21.4"

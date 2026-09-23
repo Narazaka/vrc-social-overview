@@ -23,12 +23,20 @@ const INSTANCE_SORTS = {
   users: ['現在人数', usersIn],
 } satisfies Record<string, [string, SortKey<string>]>;
 
-function SortControl<K extends string>(p: { sorts: Record<K, [string, unknown]>; key: K; setKey: (k: K) => void; reverse: boolean; setReverse: (r: boolean) => void }) {
+function SortControl<K extends string>(p: {
+  sorts: Record<K, [string, unknown]>;
+  key: K;
+  setKey: (k: K) => void;
+  reverse: boolean;
+  setReverse: (r: boolean) => void;
+}) {
   return (
     <span>
       並び:{' '}
       <select value={p.key} onChange={e => p.setKey(e.currentTarget.value as K)}>
-        <For each={Object.entries(p.sorts) as [K, [string, unknown]][]}>{([k, [label]]) => <option value={k}>{label}</option>}</For>
+        <For each={Object.entries(p.sorts) as [K, [string, unknown]][]}>
+          {([k, [label]]) => <option value={k}>{label}</option>}
+        </For>
       </select>{' '}
       <label>
         <input type="checkbox" checked={p.reverse} onChange={e => p.setReverse(e.currentTarget.checked)} /> 逆順
@@ -68,19 +76,36 @@ function FriendsTab() {
       <div class="modes">
         お気に入り:
         <label>
-          <input type="radio" name="favmode" checked={favMode() === 'grouped'} onChange={() => setFavMode('grouped')} /> グループ別
+          <input type="radio" name="favmode" checked={favMode() === 'grouped'} onChange={() => setFavMode('grouped')} />{' '}
+          グループ別
         </label>
         <label>
-          <input type="radio" name="favmode" checked={favMode() === 'mixed'} onChange={() => setFavMode('mixed')} /> まとめて
+          <input type="radio" name="favmode" checked={favMode() === 'mixed'} onChange={() => setFavMode('mixed')} />{' '}
+          まとめて
         </label>
         <SortControl sorts={FRIEND_SORTS} key={key()} setKey={setKey} reverse={reverse()} setReverse={setReverse} />
       </div>
-      <Show when={favMode() === 'grouped'} fallback={<FriendSection title="お気に入り" list={favs()} sort={sort()} reverse={reverse()} />}>
+      <Show
+        when={favMode() === 'grouped'}
+        fallback={<FriendSection title="お気に入り" list={favs()} sort={sort()} reverse={reverse()} />}
+      >
         <For each={state.favGroups}>
-          {g => <FriendSection title={g.displayName} list={favs().filter(f => state.favTags[f.id]?.includes(g.name))} sort={sort()} reverse={reverse()} />}
+          {g => (
+            <FriendSection
+              title={g.displayName}
+              list={favs().filter(f => state.favTags[f.id]?.includes(g.name))}
+              sort={sort()}
+              reverse={reverse()}
+            />
+          )}
         </For>
       </Show>
-      <FriendSection title="その他のフレンド" list={state.friends.filter(f => !(f.id in state.favTags))} sort={sort()} reverse={reverse()} />
+      <FriendSection
+        title="その他のフレンド"
+        list={state.friends.filter(f => !(f.id in state.favTags))}
+        sort={sort()}
+        reverse={reverse()}
+      />
     </>
   );
 }

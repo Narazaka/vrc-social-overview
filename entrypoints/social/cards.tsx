@@ -22,7 +22,10 @@ function Capacity(p: { n: number; cap: number }) {
         <b class={sizeClass(p.n)}>{p.n}</b>/<b class={sizeClass(p.cap)}>{p.cap}</b>
       </span>
       <span class="bar">
-        <i style={{ width: `${ratio() * 100}%` }} classList={{ full: ratio() >= 1, busy: ratio() >= 0.75 && ratio() < 1 }} />
+        <i
+          style={{ width: `${ratio() * 100}%` }}
+          classList={{ full: ratio() >= 1, busy: ratio() >= 0.75 && ratio() < 1 }}
+        />
       </span>
     </span>
   );
@@ -44,7 +47,13 @@ function InstanceHead(p: { loc: string; compact?: boolean }) {
         <div class="meta">
           <span class={`badge ${type()[1]}`}>{type()[0]}</span>
           <Show when={inst()}>{i => <Capacity n={i().userCount} cap={i().capacity} />}</Show>
-          <Show when={inst() && worldStatus(inst()!.world)}>{ws => <span class="wstat" title={ws()[1]}>{ws()[0]}</span>}</Show>
+          <Show when={inst() && worldStatus(inst()!.world)}>
+            {ws => (
+              <span class="wstat" title={ws()[1]}>
+                {ws()[0]}
+              </span>
+            )}
+          </Show>
           <Show when={ownerId() ? ownerOf(ownerId()!) : undefined}>
             {o => (
               <span class="member owner">
@@ -86,7 +95,9 @@ export function FriendCard(p: { f: Friend }) {
             <Dot f={p.f} />
             {p.f.displayName}
           </div>
-          <div class="meta">{[inWorld(p.f) ? '' : p.f.location, p.f.statusDescription].filter(Boolean).join(' / ')}</div>
+          <div class="meta">
+            {[inWorld(p.f) ? '' : p.f.location, p.f.statusDescription].filter(Boolean).join(' / ')}
+          </div>
         </div>
       </div>
       {/* 居場所（インスタンス情報と同居フレンド）は種別色の線を付けた枠にまとめ、起点フレンドの表示と混ざらないようにする */}

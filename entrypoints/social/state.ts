@@ -1,8 +1,18 @@
 import { createMemo, createRoot } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import {
-  fetchFavoriteGroups, fetchFavorites, fetchFriends, fetchInstance, fetchMe, fetchOwner, inWorld, ownerIdOf,
-  type FavoriteGroup, type Friend, type Instance, type Owner,
+  fetchFavoriteGroups,
+  fetchFavorites,
+  fetchFriends,
+  fetchInstance,
+  fetchMe,
+  fetchOwner,
+  inWorld,
+  ownerIdOf,
+  type FavoriteGroup,
+  type Friend,
+  type Instance,
+  type Owner,
 } from '@/lib/vrchat';
 
 export const [state, setState] = createStore({
