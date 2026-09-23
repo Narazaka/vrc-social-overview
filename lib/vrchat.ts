@@ -108,11 +108,16 @@ export const inWorld = (f: Friend) => f.location.startsWith('wrld_');
 export const outsideGame = (f: Friend) => f.location === 'offline';
 export const inPrivate = (f: Friend) => !inWorld(f) && !outsideGame(f);
 
-// ゲーム外のオンラインの種類を示すアイコンと説明。[アイコン, 説明]
-export function platformIcon(f: Friend): [string, string] {
-  if (f.platform === 'web') return ['🌐', 'Web'];
-  if (f.platform === 'nativemobile') return ['📱', 'モバイル'];
-  return ['🌐', f.platform];
+// ワールド外にいるときの居場所を示すアイコンと説明。[アイコン, 説明]。
+// private は一覧の行が分かれているので何も出さない
+export function placeIcon(f: Friend): [string, string] | undefined {
+  if (outsideGame(f)) {
+    if (f.platform === 'web') return ['🌐', 'Web'];
+    if (f.platform === 'nativemobile') return ['📱', 'モバイル'];
+    return ['🌐', f.platform];
+  }
+  if (f.location === 'traveling') return ['✈️', '移動中'];
+  return undefined;
 }
 export const worldIdOf = (loc: string) => loc.split(':')[0]!;
 export const ownerIdOf = (loc: string) => loc.match(/\(((?:usr|grp)_[^)]+)\)/)?.[1];

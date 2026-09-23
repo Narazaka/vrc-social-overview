@@ -10,7 +10,7 @@ import {
   worldStatus,
   type Friend,
   outsideGame,
-  platformIcon,
+  placeIcon,
 } from '@/lib/vrchat';
 import { byLoc, favClass, instanceOf, ownerOf, state, worldOf } from './state';
 
@@ -170,13 +170,8 @@ export function FriendCard(p: { f: Friend }) {
             {p.f.displayName}
           </div>
           <div class="meta">
-            <Show
-              when={outsideGame(p.f)}
-              fallback={[inWorld(p.f) ? '' : p.f.location, p.f.statusDescription].filter(Boolean).join(' / ')}
-            >
-              <span title={platformIcon(p.f)[1]}>{platformIcon(p.f)[0]}</span>
-              {p.f.statusDescription}
-            </Show>
+            <Show when={!inWorld(p.f) && placeIcon(p.f)}>{icon => <span title={icon()[1]}>{icon()[0]}</span>}</Show>
+            {p.f.statusDescription}
           </div>
         </div>
       </div>

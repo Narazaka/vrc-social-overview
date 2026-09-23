@@ -1,24 +1,10 @@
-import { createSignal, For, onMount, Show } from 'solid-js';
+import { For, onMount, Show } from 'solid-js';
 import { inPrivate, inWorld, outsideGame, type Friend } from '@/lib/vrchat';
 import { FriendCard, InstanceCard, Member } from './cards';
+import { persisted } from './settings';
 import { byLoc, instanceOf, load, setState, state } from './state';
 
 type SortKey<T> = (x: T) => number;
-
-// ゲーム外（Web・モバイル）のフレンドを別の行に分けて出すか、隠すか。開くたびに選び直さずに済むよう保存する
-const OUTSIDE_KEY = 'outsideMode';
-const [outsideMode, setOutsideModeSignal] = createSignal<'separate' | 'hidden'>(
-  localStorage.getItem(OUTSIDE_KEY) === 'hidden' ? 'hidden' : 'separate',
-);
-const setOutsideMode = (mode: 'separate' | 'hidden') => {
-  setOutsideModeSignal(mode);
-  try {
-    localStorage.setItem(OUTSIDE_KEY, mode);
-  } catch {
-    // 保存できなくても表示の切り替えはできる
-  }
-};
-const showOutside = () => outsideMode() === 'separate';
 
 // 大きい順。キーが同じものは元の順（API が返した順）を保つ
 const sortBy = <T,>(list: T[], key: SortKey<T>, reverse: boolean) => {
@@ -38,6 +24,22 @@ const INSTANCE_SORTS = {
   users: ['現在人数', usersIn],
 } satisfies Record<string, [string, SortKey<string>]>;
 
+const keysOf = <K extends string>(o: Record<K, unknown>) => Object.keys(o) as K[];
+
+// 表示設定（開き直しても保つ）
+const [tab, setTab] = persisted<'friends' | 'instances'>('tab', 'friends', ['friends', 'instances']);
+// ゲーム外（Web・モバイル）のフレンドを別の行に分けて出すか、隠すか
+const [outsideMode, setOutsideMode] = persisted<'separate' | 'hidden'>('outsideMode', 'separate', [
+  'separate',
+  'hidden',
+]);
+const showOutside = () => outsideMode() === 'separate';
+const [favMode, setFavMode] = persisted<'grouped' | 'mixed'>('favMode', 'grouped', ['grouped', 'mixed']);
+const [friendSort, setFriendSort] = persisted('friendSort', 'default', keysOf(FRIEND_SORTS));
+const [friendReverse, setFriendReverse] = persisted<boolean>('friendReverse', false);
+const [instanceSort, setInstanceSort] = persisted('instanceSort', 'friends', keysOf(INSTANCE_SORTS));
+const [instanceReverse, setInstanceReverse] = persisted<boolean>('instanceReverse', false);
+
 function SortControl<K extends string>(p: {
   sorts: Record<K, [string, unknown]>;
   key: K;
@@ -45,14 +47,19 @@ function SortControl<K extends string>(p: {
   reverse: boolean;
   setReverse: (r: boolean) => void;
 }) {
+  // 選択肢を並べて 1 クリックで切り替えられるようにする
   return (
-    <span>
-      並び:{' '}
-      <select value={p.key} onChange={e => p.setKey(e.currentTarget.value as K)}>
+    <span class="seg-group">
+      並び:
+      <span class="seg">
         <For each={Object.entries(p.sorts) as [K, [string, unknown]][]}>
-          {([k, [label]]) => <option value={k}>{label}</option>}
+          {([k, [label]]) => (
+            <button aria-pressed={p.key === k} onClick={() => p.setKey(k)}>
+              {label}
+            </button>
+          )}
         </For>
-      </select>{' '}
+      </span>
       <label>
         <input type="checkbox" checked={p.reverse} onChange={e => p.setReverse(e.currentTarget.checked)} /> 逆順
       </label>
@@ -83,11 +90,9 @@ function FriendSection(p: { title: string; group?: string; list: Friend[]; sort:
 }
 
 function FriendsTab() {
-  const [favMode, setFavMode] = createSignal<'grouped' | 'mixed'>('grouped');
-  const [key, setKey] = createSignal<keyof typeof FRIEND_SORTS>('default');
-  const [reverse, setReverse] = createSignal(false);
   const favs = () => state.friends.filter(f => f.id in state.favTags);
-  const sort = () => FRIEND_SORTS[key()][1];
+  const sort = () => FRIEND_SORTS[friendSort()][1];
+  const reverse = friendReverse;
   return (
     <>
       <div class="modes">
@@ -100,7 +105,13 @@ function FriendsTab() {
           <input type="radio" name="favmode" checked={favMode() === 'mixed'} onChange={() => setFavMode('mixed')} />{' '}
           まとめて
         </label>
-        <SortControl sorts={FRIEND_SORTS} key={key()} setKey={setKey} reverse={reverse()} setReverse={setReverse} />
+        <SortControl
+          sorts={FRIEND_SORTS}
+          key={friendSort()}
+          setKey={setFriendSort}
+          reverse={friendReverse()}
+          setReverse={setFriendReverse}
+        />
       </div>
       <Show
         when={favMode() === 'grouped'}
@@ -129,15 +140,19 @@ function FriendsTab() {
 }
 
 function InstancesTab() {
-  const [key, setKey] = createSignal<keyof typeof INSTANCE_SORTS>('friends');
-  const [reverse, setReverse] = createSignal(false);
-  const locs = () => sortBy([...byLoc().keys()], INSTANCE_SORTS[key()][1], reverse());
+  const locs = () => sortBy([...byLoc().keys()], INSTANCE_SORTS[instanceSort()][1], instanceReverse());
   const privates = () => state.friends.filter(inPrivate);
   const outside = () => state.friends.filter(outsideGame);
   return (
     <>
       <div class="modes">
-        <SortControl sorts={INSTANCE_SORTS} key={key()} setKey={setKey} reverse={reverse()} setReverse={setReverse} />
+        <SortControl
+          sorts={INSTANCE_SORTS}
+          key={instanceSort()}
+          setKey={setInstanceSort}
+          reverse={instanceReverse()}
+          setReverse={setInstanceReverse}
+        />
       </div>
       <div class="grid">
         <For each={locs()}>{loc => <InstanceCard loc={loc} />}</For>
@@ -159,10 +174,11 @@ function InstancesTab() {
 }
 
 export function App() {
-  const [tab, setTab] = createSignal<'friends' | 'instances'>('friends');
   onMount(() => load().catch(e => setState('error', (e as Error).message)));
+  const loading = () => state.progress.done < state.progress.total;
   const header = () => {
     if (!state.me) return '読み込み中…';
+    if (!state.friends.length) return `${state.me} / フレンド一覧を取得中…`;
     const outside = state.friends.filter(outsideGame).length;
     const favs = state.friends.filter(f => f.id in state.favTags).length;
     return `${state.me} / オンライン ${state.friends.length} 人（ゲーム内 ${state.friends.length - outside} / Web・モバイル ${outside}、お気に入り ${favs}）/ インスタンス ${byLoc().size} か所`;
@@ -185,7 +201,18 @@ export function App() {
         </div>
       </Show>
       <Show when={!state.loginRequired}>
-        <header>{state.error ? `エラー: ${state.error}` : header()}</header>
+        <header>
+          {state.error ? `エラー: ${state.error}` : header()}
+          <Show when={loading()}>
+            <span class="progress-text">
+              {' '}
+              / 取得中 {state.progress.done} / {state.progress.total}
+            </span>
+          </Show>
+        </header>
+        <div class="progress" classList={{ active: loading() }}>
+          <i style={{ width: `${(state.progress.done / Math.max(state.progress.total, 1)) * 100}%` }} />
+        </div>
         <nav>
           <button aria-pressed={tab() === 'friends'} onClick={() => setTab('friends')}>
             フレンド

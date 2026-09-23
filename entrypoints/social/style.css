@@ -49,6 +49,53 @@ nav button[aria-pressed='true'] {
   margin-left: 16px;
   color: var(--sub);
 }
+.seg-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.seg {
+  display: inline-flex;
+}
+.seg button {
+  font: inherit;
+  color: var(--sub);
+  padding: 1px 8px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  cursor: pointer;
+}
+.seg button + button {
+  border-left: none;
+}
+.seg button:first-child {
+  border-radius: 4px 0 0 4px;
+}
+.seg button:last-child {
+  border-radius: 0 4px 4px 0;
+}
+.seg button[aria-pressed='true'] {
+  color: var(--title);
+  background: color-mix(in srgb, var(--accent) 35%, var(--card));
+  font-weight: bold;
+}
+/* 取得中だけ、ヘッダーの下に細い進捗バーを出す */
+.progress {
+  height: 2px;
+  visibility: hidden;
+}
+.progress.active {
+  visibility: visible;
+}
+.progress i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s;
+}
+.progress-text {
+  color: var(--accent);
+}
 .modes {
   padding: 6px 8px 0;
   display: flex;

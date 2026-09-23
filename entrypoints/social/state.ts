@@ -55,6 +55,8 @@ export const [state, setState] = createStore({
   // location / ユーザー・グループ ID ごとに、取得でき次第埋まる
   instances: {} as Record<string, InstanceState | { error: string }>,
   owners: {} as Record<string, Owner>,
+  // インスタンス・オーナー・ワールドの取得の進み具合（画面上の簡易表示用）
+  progress: { done: 0, total: 0 },
   // worldId ごと。前回までに保存したものから始まり、インスタンス取得のたびに更新する
   worlds: worldCache.all(),
 });
@@ -76,6 +78,11 @@ function setWorld(worldId: string, w: World) {
   worldCache.set(worldId, slim);
 }
 
+function track<T>(p: Promise<T>): Promise<T> {
+  setState('progress', 'total', n => n + 1);
+  return p.finally(() => setState('progress', 'done', n => n + 1));
+}
+
 const memberKey = (fs: Friend[]) =>
   fs
     .map(f => f.id)
@@ -86,7 +93,7 @@ const memberKey = (fs: Friend[]) =>
 export function refreshInstance(loc: string, members: string) {
   const old = instanceCache.any(loc);
   if (old) setState('instances', loc, { userCount: old.userCount, stale: true });
-  fetchInstance(loc).then(
+  track(fetchInstance(loc)).then(
     i => {
       // ストアの setState はオブジェクトをマージするので stale を明示して消す
       setState('instances', loc, { userCount: i.userCount, stale: false });
@@ -158,7 +165,7 @@ export async function load() {
       const owner = ownerCache.fresh(ownerId, OWNER_TTL);
       if (owner) setState('owners', ownerId, owner);
       else
-        fetchOwner(ownerId).then(
+        track(fetchOwner(ownerId)).then(
           o => {
             setState('owners', ownerId, o);
             ownerCache.set(ownerId, o);
@@ -171,7 +178,7 @@ export async function load() {
   // インスタンスを取り直さなかったワールドは、期限切れのものだけワールド単体で取り直す
   for (const worldId of new Set(locs.map(worldIdOf))) {
     if (!worldsRefreshed.has(worldId) && !worldCache.fresh(worldId, WORLD_TTL))
-      fetchWorld(worldId).then(
+      track(fetchWorld(worldId)).then(
         w => setWorld(worldId, w),
         () => {},
       );
