@@ -46,7 +46,7 @@ function SortControl<K extends string>(p: {
 }
 
 // インスタンスが見える人と private 等の人は別の行から並べる
-function FriendSection(p: { title: string; list: Friend[]; sort: SortKey<Friend>; reverse: boolean }) {
+function FriendSection(p: { title: string; group?: string; list: Friend[]; sort: SortKey<Friend>; reverse: boolean }) {
   const grid = (list: () => Friend[]) => (
     <Show when={list().length}>
       <div class="grid">
@@ -56,7 +56,7 @@ function FriendSection(p: { title: string; list: Friend[]; sort: SortKey<Friend>
   );
   return (
     <section>
-      <h2>
+      <h2 class={p.group ? `fav-${p.group}` : undefined}>
         {p.title} ({p.list.length})
       </h2>
       {grid(() => p.list.filter(inWorld))}
@@ -93,6 +93,7 @@ function FriendsTab() {
           {g => (
             <FriendSection
               title={g.displayName}
+              group={g.name}
               list={favs().filter(f => state.favTags[f.id]?.includes(g.name))}
               sort={sort()}
               reverse={reverse()}

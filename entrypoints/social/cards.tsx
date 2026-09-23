@@ -1,12 +1,12 @@
 import { For, Show } from 'solid-js';
 import { img, inWorld, instanceType, ownerIdOf, sizeClass, STATUS_COLOR, worldStatus, type Friend } from '@/lib/vrchat';
-import { byLoc, instanceOf, ownerOf, state } from './state';
+import { byLoc, favClass, instanceOf, ownerOf, state } from './state';
 
 const Dot = (p: { f: Friend }) => <span class="dot" style={{ background: STATUS_COLOR[p.f.status] ?? '#999' }} />;
 
 export function Member(p: { f: Friend }) {
   return (
-    <div class="member" title={p.f.statusDescription}>
+    <div class={`member ${favClass(p.f.id)}`} title={p.f.statusDescription}>
       <img loading="lazy" src={img(p.f.currentAvatarImageUrl, 64)} />
       <Dot f={p.f} />
       <span>{p.f.displayName}</span>

@@ -241,6 +241,24 @@ h2 {
   border: 1px solid #434a59;
   color: var(--title);
 }
+/* お気に入りのフレンドは、お気に入りグループごとの色の枠で区別する（見出しも同じ色） */
+.member.fav {
+  background: color-mix(in srgb, var(--fav) 18%, #323845);
+  border-color: var(--fav);
+}
+.fav-group_0 {
+  --fav: #d4a82a;
+}
+.fav-group_1 {
+  --fav: #e0608a;
+}
+.fav-group_2 {
+  --fav: #3cc0d0;
+}
+h2[class^='fav-'] {
+  background: color-mix(in srgb, var(--fav) 25%, var(--bg));
+  border-left-color: var(--fav);
+}
 .member img {
   width: 44px;
   height: 33px;

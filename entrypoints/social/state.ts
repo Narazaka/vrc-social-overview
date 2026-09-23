@@ -35,6 +35,12 @@ export const instanceOf = (loc: string) => {
   return i && !('error' in i) ? i : undefined;
 };
 
+// お気に入りグループごとの色分け用クラス。複数グループに入っている場合は最初のグループの色
+export const favClass = (id: string) => {
+  const group = state.favTags[id]?.[0];
+  return group ? `fav fav-${group}` : '';
+};
+
 export function ownerOf(id: string): Owner | undefined {
   const f = friendsById().get(id);
   return f ? { name: f.displayName, image: f.currentAvatarImageUrl } : state.owners[id];
