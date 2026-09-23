@@ -188,6 +188,9 @@ h2 {
   line-height: 1.1;
   color: var(--sub);
 }
+.cap.stale {
+  opacity: 0.45;
+}
 .cap b {
   font-weight: bold;
   color: var(--text);

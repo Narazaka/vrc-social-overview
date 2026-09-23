@@ -5,6 +5,7 @@ import {
   fetchFavorites,
   fetchFriends,
   fetchInstance,
+  fetchWorld,
   fetchMe,
   fetchMyGroupIds,
   fetchOwner,
@@ -13,7 +14,6 @@ import {
   worldIdOf,
   type FavoriteGroup,
   type Friend,
-  type Instance,
   type Owner,
   type World,
 } from '@/lib/vrchat';
@@ -21,13 +21,16 @@ import { ttlStore } from '@/lib/cache';
 
 // 再取得を抑えるための保存先と TTL
 const MINUTE = 60 * 1000;
-// ワールド情報は変わることがまれなので期限なしで保存し、次回はインスタンス取得前から名前とサムネイルを出す
+const DAY = 24 * 60 * MINUTE;
+// ワールド情報は変わることがまれ。期限切れでも保存した値を出しつつ取り直す（stale-while-revalidate）
+const WORLD_TTL = DAY;
 const worldCache = ttlStore<World>('worlds', 2000);
-// 人数は変わるが、開き直しを繰り返したときの連続取得を防ぐため短時間だけ使い回す
-const INSTANCE_TTL = 3 * MINUTE;
-const instanceCache = ttlStore<Instance>('instances', 500);
+// 人数は流動的なので短時間だけ使い回す。members は取得時にそのインスタンスにいたフレンドで、
+// 顔ぶれが変わっていたら人数も変わっているはずなので TTL 内でも取り直す
+const INSTANCE_TTL = MINUTE;
+const instanceCache = ttlStore<{ userCount: number; members: string }>('instances', 500);
 // オーナーの名前・アイコンは変わることがまれ
-const OWNER_TTL = 24 * 60 * MINUTE;
+const OWNER_TTL = DAY;
 const ownerCache = ttlStore<Owner>('owners', 2000);
 
 // 表示に使う項目だけ残して保存量を抑える（タグは正式公開かどうかの判定にだけ使う）
@@ -35,13 +38,12 @@ const slimWorld = (w: World): World => ({
   name: w.name,
   thumbnailImageUrl: w.thumbnailImageUrl,
   releaseStatus: w.releaseStatus,
+  capacity: w.capacity,
   tags: w.tags.filter(t => t === 'system_approved'),
 });
-const slimInstance = (i: Instance): Instance => ({
-  userCount: i.userCount,
-  capacity: i.capacity,
-  world: slimWorld(i.world),
-});
+
+// stale: 期限切れの保存値を取り直し中
+export type InstanceState = { userCount: number; stale?: boolean };
 
 export const [state, setState] = createStore({
   me: undefined as string | undefined,
@@ -51,7 +53,7 @@ export const [state, setState] = createStore({
   favTags: {} as Record<string, string[]>,
   favGroups: [] as FavoriteGroup[],
   // location / ユーザー・グループ ID ごとに、取得でき次第埋まる
-  instances: {} as Record<string, Instance | { error: string }>,
+  instances: {} as Record<string, InstanceState | { error: string }>,
   owners: {} as Record<string, Owner>,
   // worldId ごと。前回までに保存したものから始まり、インスタンス取得のたびに更新する
   worlds: worldCache.all(),
@@ -65,12 +67,34 @@ export const instanceOf = (loc: string) => {
   return i && !('error' in i) ? i : undefined;
 };
 
-export const worldOf = (loc: string): World | undefined => instanceOf(loc)?.world ?? state.worlds[worldIdOf(loc)];
+// 定員は通常ワールドで決まるので、インスタンスではなくワールドの値を使う
+export const worldOf = (loc: string): World | undefined => state.worlds[worldIdOf(loc)];
 
-function setInstance(loc: string, i: Instance) {
-  setState('instances', loc, i);
-  setState('worlds', worldIdOf(loc), i.world);
-  worldCache.set(worldIdOf(loc), i.world);
+function setWorld(worldId: string, w: World) {
+  const slim = slimWorld(w);
+  setState('worlds', worldId, slim);
+  worldCache.set(worldId, slim);
+}
+
+const memberKey = (fs: Friend[]) =>
+  fs
+    .map(f => f.id)
+    .sort()
+    .join(',');
+
+// 人数を取り直す（インスタンスの応答に含まれるワールド情報も更新する）。取り直すまでは前回の値を古い値として出す
+export function refreshInstance(loc: string, members: string) {
+  const old = instanceCache.any(loc);
+  if (old) setState('instances', loc, { userCount: old.userCount, stale: true });
+  fetchInstance(loc).then(
+    i => {
+      // ストアの setState はオブジェクトをマージするので stale を明示して消す
+      setState('instances', loc, { userCount: i.userCount, stale: false });
+      instanceCache.set(loc, { userCount: i.userCount, members });
+      setWorld(worldIdOf(loc), i.world);
+    },
+    e => setState('instances', loc, { error: (e as Error).message }),
+  );
 }
 
 // お気に入りグループごとの色分け用クラス。複数グループに入っている場合は最初のグループの色
@@ -112,23 +136,21 @@ export async function load() {
 
   // よく見る場所から先に埋まるよう、お気に入りのフレンドが多い順、次にフレンドが多い順に取得する
   const favIds = new Set(favs.map(f => f.favoriteId));
-  const locs = [...Map.groupBy(friends.filter(inWorld), f => f.location)]
+  const groups = Map.groupBy(friends.filter(inWorld), f => f.location);
+  const locs = [...groups]
     .map(([loc, fs]) => ({ loc, fav: fs.filter(f => favIds.has(f.id)).length, n: fs.length }))
     .sort((a, b) => b.fav - a.fav || b.n - a.n)
     .map(x => x.loc);
 
+  const worldsRefreshed = new Set<string>();
   for (const loc of locs) {
+    const members = memberKey(groups.get(loc)!);
     const cached = instanceCache.fresh(loc, INSTANCE_TTL);
-    if (cached) setInstance(loc, cached);
-    else
-      fetchInstance(loc).then(
-        i => {
-          const slim = slimInstance(i);
-          setInstance(loc, slim);
-          instanceCache.set(loc, slim);
-        },
-        e => setState('instances', loc, { error: (e as Error).message }),
-      );
+    if (cached?.members === members) setState('instances', loc, { userCount: cached.userCount, stale: false });
+    else {
+      refreshInstance(loc, members);
+      worldsRefreshed.add(worldIdOf(loc));
+    }
 
     const ownerId = ownerIdOf(loc);
     if (ownerId && !friendsById().has(ownerId) && !ownerRequested.has(ownerId)) {
@@ -144,5 +166,14 @@ export async function load() {
           () => setState('owners', ownerId, { name: ownerId, image: '' }),
         );
     }
+  }
+
+  // インスタンスを取り直さなかったワールドは、期限切れのものだけワールド単体で取り直す
+  for (const worldId of new Set(locs.map(worldIdOf))) {
+    if (!worldsRefreshed.has(worldId) && !worldCache.fresh(worldId, WORLD_TTL))
+      fetchWorld(worldId).then(
+        w => setWorld(worldId, w),
+        () => {},
+      );
   }
 }

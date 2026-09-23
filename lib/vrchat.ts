@@ -8,7 +8,13 @@ export type Friend = {
   location: string;
   currentAvatarImageUrl: string;
 };
-export type World = { name: string; thumbnailImageUrl: string; releaseStatus: string; tags: string[] };
+export type World = {
+  name: string;
+  thumbnailImageUrl: string;
+  releaseStatus: string;
+  capacity: number;
+  tags: string[];
+};
 export type Instance = { userCount: number; capacity: number; world: World };
 export type Owner = { name: string; image: string };
 export type Favorite = { favoriteId: string; tags: string[] };
@@ -65,6 +71,7 @@ export const fetchFriends = () => getAll<Friend>('/auth/user/friends?offline=fal
 export const fetchFavorites = () => getAll<Favorite>('/favorites?type=friend');
 export const fetchFavoriteGroups = () => get<FavoriteGroup[]>('/favorite/groups?type=friend&n=50');
 export const fetchInstance = (loc: string) => limited(() => get<Instance>(`/instances/${loc}`));
+export const fetchWorld = (worldId: string) => limited(() => get<World>(`/worlds/${worldId}`));
 
 // フレンド以外のユーザーは currentAvatarImageUrl が返らないので iconUrl で代用する
 export function fetchOwner(id: string): Promise<Owner> {

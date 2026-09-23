@@ -53,12 +53,17 @@ export function Member(p: { f: Friend }) {
   );
 }
 
-function Capacity(p: { n: number; cap: number }) {
-  const ratio = () => Math.min(p.n / p.cap, 1);
+// cap はワールド情報がまだ無いと不明。stale は前回の人数を取り直し中
+function Capacity(p: { n: number; cap: number | undefined; stale?: boolean }) {
+  const ratio = () => (p.cap ? Math.min(p.n / p.cap, 1) : 0);
   return (
-    <span class="cap" title={`${p.n} / ${p.cap} 人`}>
+    <span
+      class="cap"
+      classList={{ stale: p.stale }}
+      title={`${p.n} / ${p.cap ?? '?'} 人${p.stale ? '（前回の人数・更新中）' : ''}`}
+    >
       <span>
-        <b class={sizeClass(p.n)}>{p.n}</b>/<b class={sizeClass(p.cap)}>{p.cap}</b>
+        <b class={sizeClass(p.n)}>{p.n}</b>/<b class={p.cap ? sizeClass(p.cap) : ''}>{p.cap ?? '?'}</b>
       </span>
       <span class="bar">
         <i
@@ -96,7 +101,7 @@ function InstanceHead(p: { loc: string; compact?: boolean }) {
         </div>
         <div class="meta">
           <span class={`badge ${type()[1]}`}>{type()[0]}</span>
-          <Show when={inst()}>{i => <Capacity n={i().userCount} cap={i().capacity} />}</Show>
+          <Show when={inst()}>{i => <Capacity n={i().userCount} cap={world()?.capacity} stale={i().stale} />}</Show>
           <Show when={ownerId() ? ownerOf(ownerId()!) : undefined}>
             {o => (
               <span
