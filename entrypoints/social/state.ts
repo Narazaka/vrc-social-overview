@@ -1,6 +1,8 @@
 import { createMemo, createRoot, createSignal } from 'solid-js';
-import { createStore } from 'solid-js/store';
+import { createStore, reconcile } from 'solid-js/store';
+import { connectPipeline } from '@/lib/pipeline';
 import {
+  fetchAvatarImage,
   fetchFavoriteGroups,
   fetchFavorites,
   fetchFriends,
@@ -59,6 +61,10 @@ export const [state, setState] = createStore({
   progress: { done: 0, total: 0 },
   // worldId ごと。前回までに保存したものから始まり、インスタンス取得のたびに更新する
   worlds: worldCache.all(),
+  // Pipeline（リアルタイム更新）に繋がっているか。繋ぐ前は undefined
+  live: undefined as boolean | undefined,
+  // Pipeline で居場所が変わったのを受け取った時刻（ページを開いてから分のみ）
+  movedAt: {} as Record<string, number>,
 });
 
 // 詳細パネルで表示中のユーザー（usr_）またはワールド（wrld_）
@@ -130,7 +136,139 @@ export function ownerOf(id: string): OwnerView | undefined {
   return { ...o, kind: allFriendIds.has(id) ? 'friend' : 'stranger' };
 }
 
+// 人数を必要なら取り直す。取り直すと応答に含まれるワールド情報も新しくなるので true を返す
+// ponytail: 顔ぶれが変わるたびに取り直す。人の出入りが激しくリクエストが増えるようなら間隔を空ける
+function syncInstance(loc: string): boolean {
+  const members = byLoc().get(loc);
+  if (!members) return false;
+  const key = memberKey(members);
+  const cached = instanceCache.fresh(loc, INSTANCE_TTL);
+  if (cached?.members === key) {
+    setState('instances', loc, { userCount: cached.userCount, stale: false });
+    return false;
+  }
+  refreshInstance(loc, key);
+  return true;
+}
+
+const worldRequested = new Set<string>();
+// ワールド情報が古ければ取り直す（同じページを開いている間は一度だけ）
+function syncWorld(worldId: string) {
+  if (worldRequested.has(worldId) || worldCache.fresh(worldId, WORLD_TTL)) return;
+  worldRequested.add(worldId);
+  track(fetchWorld(worldId)).then(
+    w => setWorld(worldId, w),
+    () => {},
+  );
+}
+
 const ownerRequested = new Set<string>();
+function syncOwner(loc: string) {
+  const ownerId = ownerIdOf(loc);
+  if (!ownerId || friendsById().has(ownerId) || ownerRequested.has(ownerId)) return;
+  ownerRequested.add(ownerId);
+  const owner = ownerCache.fresh(ownerId, OWNER_TTL);
+  if (owner) setState('owners', ownerId, owner);
+  else
+    track(fetchOwner(ownerId)).then(
+      o => {
+        setState('owners', ownerId, o);
+        ownerCache.set(ownerId, o);
+      },
+      () => setState('owners', ownerId, { name: ownerId, image: '' }),
+    );
+}
+
+// フレンド一覧を取り直して、各インスタンスの人数・オーナー・ワールドを埋める
+async function syncFriends(friends?: Friend[]) {
+  // 同じ人のカードを作り直さないよう、ID で突き合わせて差分だけ反映する
+  setState('friends', reconcile(friends ?? (await fetchFriends()), { key: 'id' }));
+
+  // よく見る場所から先に埋まるよう、お気に入りのフレンドが多い順、次にフレンドが多い順に取得する
+  const locs = [...byLoc()]
+    .map(([loc, fs]) => ({ loc, fav: fs.filter(f => f.id in state.favTags).length, n: fs.length }))
+    .sort((a, b) => b.fav - a.fav || b.n - a.n)
+    .map(x => x.loc);
+
+  const worldsRefreshed = new Set<string>();
+  for (const loc of locs) {
+    if (syncInstance(loc)) worldsRefreshed.add(worldIdOf(loc));
+    syncOwner(loc);
+  }
+  // インスタンスを取り直さなかったワールドは、期限切れのものだけワールド単体で取り直す
+  for (const worldId of new Set(locs.map(worldIdOf))) if (!worldsRefreshed.has(worldId)) syncWorld(worldId);
+}
+
+// Pipeline の user には表示に使う項目のうちこれらだけが入っている（アバター画像は入らない）
+type PipelineUser = { displayName?: string; status?: string; statusDescription?: string };
+const pickUser = (u: PipelineUser | undefined): Partial<Friend> =>
+  Object.fromEntries(
+    (['displayName', 'status', 'statusDescription'] as const).filter(k => u?.[k] !== undefined).map(k => [k, u![k]]),
+  );
+
+function patchFriend(id: string, patch: Partial<Friend>) {
+  const i = state.friends.findIndex(f => f.id === id);
+  const oldLoc = state.friends[i]?.location;
+  if (i >= 0) setState('friends', i, patch);
+  else {
+    const f: Friend = {
+      id,
+      displayName: '',
+      status: '',
+      statusDescription: '',
+      location: 'offline',
+      platform: '',
+      currentAvatarImageUrl: '',
+      ...patch,
+    };
+    setState('friends', fs => [...fs, f]);
+    fetchAvatarImage(id).then(
+      url => setState('friends', fs => fs.id === id, 'currentAvatarImageUrl', url),
+      () => {},
+    );
+  }
+  if (patch.location === undefined || patch.location === oldLoc) return;
+  setState('movedAt', id, Date.now());
+  // 抜けた先と入った先のインスタンスは人数が変わっている
+  for (const loc of [oldLoc, patch.location])
+    if (loc?.startsWith('wrld_')) {
+      if (!syncInstance(loc)) syncWorld(worldIdOf(loc));
+      syncOwner(loc);
+    }
+}
+
+function removeFriend(id: string) {
+  const loc = friendsById().get(id)?.location;
+  setState('friends', fs => fs.filter(f => f.id !== id));
+  if (loc?.startsWith('wrld_')) syncInstance(loc);
+}
+
+// イベントの種類と中身は https://vrchat.community/websocket
+function onEvent(type: string, c: any) {
+  const id: string | undefined = c?.userId ?? c?.userid;
+  if (!id) return;
+  switch (type) {
+    case 'friend-online':
+    case 'friend-location':
+      // 移動先のワールド情報が付いてくるので、取りに行かずに済む
+      if (c.worldId && c.world?.name) setWorld(c.worldId, c.world);
+      return patchFriend(id, { ...pickUser(c.user), location: c.location, platform: c.platform });
+    case 'friend-active':
+      // Web サイトやモバイルアプリからのオンライン
+      return patchFriend(id, { ...pickUser(c.user), location: 'offline', platform: c.platform });
+    case 'friend-update':
+      if (friendsById().has(id)) patchFriend(id, pickUser(c.user));
+      return;
+    case 'friend-offline':
+      return removeFriend(id);
+    case 'friend-add':
+      allFriendIds.add(id);
+      return;
+    case 'friend-delete':
+      allFriendIds.delete(id);
+      return removeFriend(id);
+  }
+}
 
 export async function load() {
   try {
@@ -143,48 +281,12 @@ export async function load() {
     return;
   }
   const [friends, favs, favGroups] = await Promise.all([fetchFriends(), fetchFavorites(), fetchFavoriteGroups()]);
-  setState({ friends, favGroups, favTags: Object.fromEntries(favs.map(f => [f.favoriteId, f.tags])) });
-
-  // よく見る場所から先に埋まるよう、お気に入りのフレンドが多い順、次にフレンドが多い順に取得する
-  const favIds = new Set(favs.map(f => f.favoriteId));
-  const groups = Map.groupBy(friends.filter(inWorld), f => f.location);
-  const locs = [...groups]
-    .map(([loc, fs]) => ({ loc, fav: fs.filter(f => favIds.has(f.id)).length, n: fs.length }))
-    .sort((a, b) => b.fav - a.fav || b.n - a.n)
-    .map(x => x.loc);
-
-  const worldsRefreshed = new Set<string>();
-  for (const loc of locs) {
-    const members = memberKey(groups.get(loc)!);
-    const cached = instanceCache.fresh(loc, INSTANCE_TTL);
-    if (cached?.members === members) setState('instances', loc, { userCount: cached.userCount, stale: false });
-    else {
-      refreshInstance(loc, members);
-      worldsRefreshed.add(worldIdOf(loc));
-    }
-
-    const ownerId = ownerIdOf(loc);
-    if (ownerId && !friendsById().has(ownerId) && !ownerRequested.has(ownerId)) {
-      ownerRequested.add(ownerId);
-      const owner = ownerCache.fresh(ownerId, OWNER_TTL);
-      if (owner) setState('owners', ownerId, owner);
-      else
-        track(fetchOwner(ownerId)).then(
-          o => {
-            setState('owners', ownerId, o);
-            ownerCache.set(ownerId, o);
-          },
-          () => setState('owners', ownerId, { name: ownerId, image: '' }),
-        );
-    }
-  }
-
-  // インスタンスを取り直さなかったワールドは、期限切れのものだけワールド単体で取り直す
-  for (const worldId of new Set(locs.map(worldIdOf))) {
-    if (!worldsRefreshed.has(worldId) && !worldCache.fresh(worldId, WORLD_TTL))
-      track(fetchWorld(worldId)).then(
-        w => setWorld(worldId, w),
-        () => {},
-      );
-  }
+  setState({ favGroups, favTags: Object.fromEntries(favs.map(f => [f.favoriteId, f.tags])) });
+  await syncFriends(friends);
+  // ponytail: 一覧の取得から接続までの間のイベントは取りこぼす。気になるなら接続してから一覧を取る
+  connectPipeline({
+    onEvent,
+    onReconnect: () => void syncFriends(),
+    onStatus: live => setState('live', live),
+  });
 }

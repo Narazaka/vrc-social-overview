@@ -118,6 +118,12 @@ export type WorldDetail = World & {
   favorites: number;
   visits: number;
 };
+// Pipeline（WebSocket）の接続に使う認証トークン。ログイン Cookie の値と同じもの
+export const fetchAuthToken = () => get<{ token: string }>('/auth').then(a => a.token);
+// Pipeline のイベントにはアバター画像が入らないので、新しくオンラインになったフレンドの分だけ取る
+export const fetchAvatarImage = (id: string) =>
+  limited(() => get<{ currentAvatarImageUrl: string }>(`/users/${id}`)).then(u => u.currentAvatarImageUrl);
+
 export const fetchWorld = (worldId: string) => limited(() => get<WorldDetail>(`/worlds/${worldId}`));
 
 // フレンド以外のユーザーは currentAvatarImageUrl が返らないので iconUrl で代用する

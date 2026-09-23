@@ -555,3 +555,9 @@ h2[class^='fav-'] {
   background: none;
   border: 2px solid var(--status);
 }
+.live {
+  color: var(--sub);
+}
+.live.on {
+  color: #66bb6a;
+}

@@ -19,6 +19,8 @@ const FRIEND_SORTS = {
   default: ['既定', () => 0],
   cohabit: ['同居フレンド数', f => (inWorld(f) ? byLoc().get(f.location)!.length : 0)],
   users: ['インスタンス人数', f => (inWorld(f) ? usersIn(f.location) : -1)],
+  // ページを開いてから移動・オンラインになった順。開いた時点の居場所に居続けている人は後ろ
+  moved: ['最近の移動', f => state.movedAt[f.id] ?? 0],
 } satisfies Record<string, [string, SortKey<Friend>]>;
 const INSTANCE_SORTS = {
   friends: ['フレンド数', loc => byLoc().get(loc)!.length],
@@ -204,6 +206,11 @@ export function App() {
       <Show when={!state.loginRequired}>
         <header>
           {state.error ? `エラー: ${state.error}` : header()}
+          <Show when={state.live !== undefined}>
+            <span class="live" classList={{ on: state.live }}>
+              {state.live ? ' ● リアルタイム更新中' : ' ○ 再接続中…'}
+            </span>
+          </Show>
           <Show when={loading()}>
             <span class="progress-text">
               {' '}
