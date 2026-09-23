@@ -179,6 +179,7 @@ h2 {
 }
 .wstat {
   cursor: help;
+  margin-right: 3px;
 }
 .cap {
   display: inline-flex;

@@ -1,6 +1,7 @@
-import { For, Show } from 'solid-js';
+import { createEffect, createSignal, For, onCleanup, Show } from 'solid-js';
+import { resolveImage } from '@/lib/cache';
 import { img, inWorld, instanceType, ownerIdOf, sizeClass, STATUS_COLOR, worldStatus, type Friend } from '@/lib/vrchat';
-import { byLoc, favClass, instanceOf, ownerOf, state } from './state';
+import { byLoc, favClass, instanceOf, ownerOf, state, worldOf } from './state';
 
 const OWNER_KIND_LABEL = {
   friend: 'オーナー（フレンド）',
@@ -9,12 +10,43 @@ const OWNER_KIND_LABEL = {
   group: 'オーナー（加入していないグループ）',
 };
 
+// 画面に近づいてから画像 URL を解決して表示する（画像 API へのアクセスを見えるものだけに絞る）
+function Img(p: { src: string | undefined; class?: string }) {
+  const [visible, setVisible] = createSignal(false);
+  const [src, setSrc] = createSignal<string>();
+  const observe = (el: HTMLImageElement) => {
+    const io = new IntersectionObserver(
+      entries => {
+        if (entries.some(e => e.isIntersecting)) {
+          setVisible(true);
+          io.disconnect();
+        }
+      },
+      { rootMargin: '300px' },
+    );
+    io.observe(el);
+    onCleanup(() => io.disconnect());
+  };
+  createEffect(() => {
+    const url = p.src;
+    if (!visible() || !url) return;
+    let live = true;
+    // 解決に失敗したら画像 API の URL をそのまま使う
+    resolveImage(url).then(
+      u => live && setSrc(u),
+      () => live && setSrc(url),
+    );
+    onCleanup(() => (live = false));
+  });
+  return <img ref={observe} class={p.class} src={src()} />;
+}
+
 const Dot = (p: { f: Friend }) => <span class="dot" style={{ background: STATUS_COLOR[p.f.status] ?? '#999' }} />;
 
 export function Member(p: { f: Friend }) {
   return (
     <div class={`member ${favClass(p.f.id)}`} title={p.f.statusDescription}>
-      <img loading="lazy" src={img(p.f.currentAvatarImageUrl, 64)} />
+      <Img src={img(p.f.currentAvatarImageUrl, 64)} />
       <Dot f={p.f} />
       <span>{p.f.displayName}</span>
     </div>
@@ -42,32 +74,36 @@ function InstanceHead(p: { loc: string; compact?: boolean }) {
   const type = () => instanceType(p.loc);
   const ownerId = () => ownerIdOf(p.loc);
   const inst = () => instanceOf(p.loc);
+  // インスタンス取得前は保存済みのワールド情報で名前とサムネイルを出す
+  const world = () => worldOf(p.loc);
   const title = () => {
     const i = state.instances[p.loc];
-    return !i ? '読み込み中…' : 'error' in i ? `取得失敗 (${i.error})` : i.world.name;
+    return i && 'error' in i ? `取得失敗 (${i.error})` : (world()?.name ?? '読み込み中…');
   };
   return (
     <div class="head" classList={{ compact: p.compact }}>
-      <img class="thumb" loading="lazy" src={img(inst()?.world.thumbnailImageUrl, 128)} />
+      <Img class="thumb" src={img(world()?.thumbnailImageUrl, 128)} />
       <div>
-        <div class="title">{title()}</div>
-        <div class="meta">
-          <span class={`badge ${type()[1]}`}>{type()[0]}</span>
-          <Show when={inst()}>{i => <Capacity n={i().userCount} cap={i().capacity} />}</Show>
-          <Show when={inst() && worldStatus(inst()!.world)}>
+        <div class="title">
+          <Show when={world() && worldStatus(world()!)}>
             {ws => (
               <span class="wstat" title={ws()[1]}>
                 {ws()[0]}
               </span>
             )}
           </Show>
+          {title()}
+        </div>
+        <div class="meta">
+          <span class={`badge ${type()[1]}`}>{type()[0]}</span>
+          <Show when={inst()}>{i => <Capacity n={i().userCount} cap={i().capacity} />}</Show>
           <Show when={ownerId() ? ownerOf(ownerId()!) : undefined}>
             {o => (
               <span
                 class={`member owner owner-${o().kind} ${o().kind === 'friend' ? favClass(ownerId()!) : ''}`}
                 title={OWNER_KIND_LABEL[o().kind]}
               >
-                <img loading="lazy" src={img(o().image, 64)} />
+                <Img src={img(o().image, 64)} />
                 <Show when={o().kind === 'friend'}>
                   <Show when={o().friend} fallback={<span class="dot offline" title="オフライン" />}>
                     {f => <Dot f={f()} />}
@@ -104,7 +140,7 @@ export function FriendCard(p: { f: Friend }) {
   return (
     <section class="card">
       <div class="subject">
-        <img loading="lazy" src={img(p.f.currentAvatarImageUrl, 128)} />
+        <Img src={img(p.f.currentAvatarImageUrl, 128)} />
         <div>
           <div class="name">
             <Dot f={p.f} />

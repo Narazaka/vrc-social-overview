@@ -23,27 +23,29 @@ async function get<T>(path: string): Promise<T> {
 
 // インスタンス数だけ API を叩くので、同時リクエスト数を絞ってレート制限を避ける
 // ponytail: 固定並列数のみ。429 が出るようなら間隔制御・リトライを入れる
-const queue: (() => void)[] = [];
-let active = 0;
-function limited<T>(fn: () => Promise<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    queue.push(() =>
-      fn()
-        .then(resolve, reject)
-        .finally(() => {
-          active--;
-          next();
-        }),
-    );
-    next();
-  });
+export function createLimiter(concurrency: number) {
+  const queue: (() => void)[] = [];
+  let active = 0;
+  const next = () => {
+    while (active < concurrency && queue.length) {
+      active++;
+      queue.shift()!();
+    }
+  };
+  return <T>(fn: () => Promise<T>): Promise<T> =>
+    new Promise((resolve, reject) => {
+      queue.push(() =>
+        fn()
+          .then(resolve, reject)
+          .finally(() => {
+            active--;
+            next();
+          }),
+      );
+      next();
+    });
 }
-function next() {
-  while (active < 3 && queue.length) {
-    active++;
-    queue.shift()!();
-  }
-}
+const limited = createLimiter(3);
 
 async function getAll<T>(path: string): Promise<T[]> {
   const all: T[] = [];
@@ -77,7 +79,7 @@ export function fetchOwner(id: string): Promise<Owner> {
   }));
 }
 
-// 画像 API も認証必須。Cookie があるのは vrchat.com 側なのでホストを差し替える
+// 拡張の host_permissions に収めるため、画像 URL のホストを vrchat.com に揃える
 // 大きい画像を縮小表示するとジャギるので、/image/{file}/{version}/{size} 形式で表示サイズに近いもの（64/128/256）を取る
 export const img = (url: string | undefined, size: 64 | 128 | 256) =>
   url
@@ -94,6 +96,7 @@ export const STATUS_COLOR: Record<string, string> = {
 };
 
 export const inWorld = (f: Friend) => f.location.startsWith('wrld_');
+export const worldIdOf = (loc: string) => loc.split(':')[0]!;
 export const ownerIdOf = (loc: string) => loc.match(/\(((?:usr|grp)_[^)]+)\)/)?.[1];
 
 // [表示名, 色分け用のキー]
