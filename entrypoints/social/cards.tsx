@@ -1,6 +1,17 @@
 import { createEffect, createSignal, For, onCleanup, Show } from 'solid-js';
 import { resolveImage } from '@/lib/cache';
-import { img, inWorld, instanceType, ownerIdOf, sizeClass, STATUS_COLOR, worldStatus, type Friend } from '@/lib/vrchat';
+import {
+  img,
+  inWorld,
+  instanceType,
+  ownerIdOf,
+  sizeClass,
+  STATUS_COLOR,
+  worldStatus,
+  type Friend,
+  outsideGame,
+  platformIcon,
+} from '@/lib/vrchat';
 import { byLoc, favClass, instanceOf, ownerOf, state, worldOf } from './state';
 
 const OWNER_KIND_LABEL = {
@@ -41,7 +52,14 @@ function Img(p: { src: string | undefined; class?: string }) {
   return <img ref={observe} class={p.class} src={src()} />;
 }
 
-const Dot = (p: { f: Friend }) => <span class="dot" style={{ background: STATUS_COLOR[p.f.status] ?? '#999' }} />;
+// ゲーム外（Web・モバイル）のフレンドは VRChat の慣例どおり輪郭だけの丸にする
+const Dot = (p: { f: Friend }) => (
+  <span
+    class="dot"
+    classList={{ outside: outsideGame(p.f) }}
+    style={{ '--status': STATUS_COLOR[p.f.status] ?? '#999' }}
+  />
+);
 
 export function Member(p: { f: Friend }) {
   return (
@@ -143,7 +161,7 @@ export function InstanceCard(p: { loc: string }) {
 export function FriendCard(p: { f: Friend }) {
   const others = () => (inWorld(p.f) ? (byLoc().get(p.f.location) ?? []).filter(m => m.id !== p.f.id) : []);
   return (
-    <section class="card">
+    <section class="card" classList={{ outside: outsideGame(p.f) }}>
       <div class="subject">
         <Img src={img(p.f.currentAvatarImageUrl, 128)} />
         <div>
@@ -152,7 +170,13 @@ export function FriendCard(p: { f: Friend }) {
             {p.f.displayName}
           </div>
           <div class="meta">
-            {[inWorld(p.f) ? '' : p.f.location, p.f.statusDescription].filter(Boolean).join(' / ')}
+            <Show
+              when={outsideGame(p.f)}
+              fallback={[inWorld(p.f) ? '' : p.f.location, p.f.statusDescription].filter(Boolean).join(' / ')}
+            >
+              <span title={platformIcon(p.f)[1]}>{platformIcon(p.f)[0]}</span>
+              {p.f.statusDescription}
+            </Show>
           </div>
         </div>
       </div>

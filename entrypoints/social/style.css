@@ -43,6 +43,12 @@ nav button[aria-pressed='true'] {
   background: color-mix(in srgb, var(--accent) 25%, var(--card));
   font-weight: bold;
 }
+.outside-mode {
+  display: flex;
+  gap: 8px;
+  margin-left: 16px;
+  color: var(--sub);
+}
 .modes {
   padding: 6px 8px 0;
   display: flex;
@@ -329,10 +335,58 @@ h2[class^='fav-'] {
   width: 36px;
   height: 27px;
 }
+/* ゲーム外（Web・モバイル）からのオンラインは、ゲーム内の人より控えめに出す */
+.card.outside,
+.members.outside {
+  opacity: 0.6;
+}
+.login-required {
+  max-width: 480px;
+  margin: 64px auto;
+  padding: 24px;
+  text-align: center;
+  background: var(--card);
+  border: 2px solid #e0a000;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.login-required .headline {
+  font-size: 18px;
+  font-weight: bold;
+  color: var(--title);
+}
+.login-required .detail {
+  color: var(--sub);
+  font-size: 11px;
+}
+.button {
+  display: inline-block;
+  margin: 0 4px;
+  padding: 6px 16px;
+  font: inherit;
+  color: var(--text);
+  background: var(--chip);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.button.primary {
+  color: var(--title);
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: bold;
+}
 .dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   flex: none;
+  background: var(--status);
   box-shadow: 0 0 0 2px rgb(0 0 0 / 0.35);
+}
+.dot.outside {
+  box-sizing: border-box;
+  background: none;
+  border: 2px solid var(--status);
 }

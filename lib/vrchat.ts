@@ -6,6 +6,7 @@ export type Friend = {
   status: string;
   statusDescription: string;
   location: string;
+  platform: string;
   currentAvatarImageUrl: string;
 };
 export type World = {
@@ -103,6 +104,16 @@ export const STATUS_COLOR: Record<string, string> = {
 };
 
 export const inWorld = (f: Friend) => f.location.startsWith('wrld_');
+// ゲーム外（Web サイトやモバイルアプリ）からのオンラインは location が offline になる
+export const outsideGame = (f: Friend) => f.location === 'offline';
+export const inPrivate = (f: Friend) => !inWorld(f) && !outsideGame(f);
+
+// ゲーム外のオンラインの種類を示すアイコンと説明。[アイコン, 説明]
+export function platformIcon(f: Friend): [string, string] {
+  if (f.platform === 'web') return ['🌐', 'Web'];
+  if (f.platform === 'nativemobile') return ['📱', 'モバイル'];
+  return ['🌐', f.platform];
+}
 export const worldIdOf = (loc: string) => loc.split(':')[0]!;
 export const ownerIdOf = (loc: string) => loc.match(/\(((?:usr|grp)_[^)]+)\)/)?.[1];
 

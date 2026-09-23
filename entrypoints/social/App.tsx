@@ -1,9 +1,24 @@
 import { createSignal, For, onMount, Show } from 'solid-js';
-import { inWorld, type Friend } from '@/lib/vrchat';
+import { inPrivate, inWorld, outsideGame, type Friend } from '@/lib/vrchat';
 import { FriendCard, InstanceCard, Member } from './cards';
 import { byLoc, instanceOf, load, setState, state } from './state';
 
 type SortKey<T> = (x: T) => number;
+
+// ゲーム外（Web・モバイル）のフレンドを別の行に分けて出すか、隠すか。開くたびに選び直さずに済むよう保存する
+const OUTSIDE_KEY = 'outsideMode';
+const [outsideMode, setOutsideModeSignal] = createSignal<'separate' | 'hidden'>(
+  localStorage.getItem(OUTSIDE_KEY) === 'hidden' ? 'hidden' : 'separate',
+);
+const setOutsideMode = (mode: 'separate' | 'hidden') => {
+  setOutsideModeSignal(mode);
+  try {
+    localStorage.setItem(OUTSIDE_KEY, mode);
+  } catch {
+    // 保存できなくても表示の切り替えはできる
+  }
+};
+const showOutside = () => outsideMode() === 'separate';
 
 // 大きい順。キーが同じものは元の順（API が返した順）を保つ
 const sortBy = <T,>(list: T[], key: SortKey<T>, reverse: boolean) => {
@@ -45,8 +60,9 @@ function SortControl<K extends string>(p: {
   );
 }
 
-// インスタンスが見える人と private 等の人は別の行から並べる
+// ワールドにいる人・ゲーム内で private の人・ゲーム外（Web・モバイル）の人は別の行から並べる
 function FriendSection(p: { title: string; group?: string; list: Friend[]; sort: SortKey<Friend>; reverse: boolean }) {
+  const visible = () => (showOutside() ? p.list : p.list.filter(f => !outsideGame(f)));
   const grid = (list: () => Friend[]) => (
     <Show when={list().length}>
       <div class="grid">
@@ -57,10 +73,11 @@ function FriendSection(p: { title: string; group?: string; list: Friend[]; sort:
   return (
     <section>
       <h2 class={p.group ? `fav-${p.group}` : undefined}>
-        {p.title} ({p.list.length})
+        {p.title} ({visible().length})
       </h2>
       {grid(() => p.list.filter(inWorld))}
-      {grid(() => p.list.filter(f => !inWorld(f)))}
+      {grid(() => p.list.filter(inPrivate))}
+      <Show when={showOutside()}>{grid(() => p.list.filter(outsideGame))}</Show>
     </section>
   );
 }
@@ -115,7 +132,8 @@ function InstancesTab() {
   const [key, setKey] = createSignal<keyof typeof INSTANCE_SORTS>('friends');
   const [reverse, setReverse] = createSignal(false);
   const locs = () => sortBy([...byLoc().keys()], INSTANCE_SORTS[key()][1], reverse());
-  const others = () => state.friends.filter(f => !inWorld(f));
+  const privates = () => state.friends.filter(inPrivate);
+  const outside = () => state.friends.filter(outsideGame);
   return (
     <>
       <div class="modes">
@@ -125,10 +143,16 @@ function InstancesTab() {
         <For each={locs()}>{loc => <InstanceCard loc={loc} />}</For>
       </div>
       <div class="others">
-        <h2>private / その他 ({others().length})</h2>
+        <h2>private ({privates().length})</h2>
         <div class="members">
-          <For each={others()}>{f => <Member f={f} />}</For>
+          <For each={privates()}>{f => <Member f={f} />}</For>
         </div>
+        <Show when={showOutside()}>
+          <h2>Web・モバイル ({outside().length})</h2>
+          <div class="members outside">
+            <For each={outside()}>{f => <Member f={f} />}</For>
+          </div>
+        </Show>
       </div>
     </>
   );
@@ -137,34 +161,66 @@ function InstancesTab() {
 export function App() {
   const [tab, setTab] = createSignal<'friends' | 'instances'>('friends');
   onMount(() => load().catch(e => setState('error', (e as Error).message)));
-  const header = () =>
-    state.me
-      ? `${state.me} / オンライン ${state.friends.length} 人（お気に入り ${state.friends.filter(f => f.id in state.favTags).length} 人）/ インスタンス ${byLoc().size} か所`
-      : '読み込み中…';
+  const header = () => {
+    if (!state.me) return '読み込み中…';
+    const outside = state.friends.filter(outsideGame).length;
+    const favs = state.friends.filter(f => f.id in state.favTags).length;
+    return `${state.me} / オンライン ${state.friends.length} 人（ゲーム内 ${state.friends.length - outside} / Web・モバイル ${outside}、お気に入り ${favs}）/ インスタンス ${byLoc().size} か所`;
+  };
   return (
     <>
-      <header>
-        <Show when={state.loginRequired} fallback={state.error ? `エラー: ${state.error}` : header()}>
-          未ログイン？{' '}
-          <a href="https://vrchat.com/home/login" target="_blank">
-            vrchat.com でログイン
-          </a>{' '}
-          ({state.error})
-        </Show>
-      </header>
-      <nav>
-        <button aria-pressed={tab() === 'friends'} onClick={() => setTab('friends')}>
-          フレンド
-        </button>
-        <button aria-pressed={tab() === 'instances'} onClick={() => setTab('instances')}>
-          インスタンス
-        </button>
-      </nav>
-      <main>
-        <Show when={tab() === 'friends'} fallback={<InstancesTab />}>
-          <FriendsTab />
-        </Show>
-      </main>
+      <Show when={state.loginRequired}>
+        <div class="login-required">
+          <p class="headline">VRChat にログインしていません</p>
+          <p>vrchat.com でログインしてから、このページを再読み込みしてください。</p>
+          <p>
+            <a class="button primary" href="https://vrchat.com/home/login" target="_blank">
+              vrchat.com でログイン
+            </a>
+            <button class="button" onClick={() => location.reload()}>
+              再読み込み
+            </button>
+          </p>
+          <p class="detail">{state.error}</p>
+        </div>
+      </Show>
+      <Show when={!state.loginRequired}>
+        <header>{state.error ? `エラー: ${state.error}` : header()}</header>
+        <nav>
+          <button aria-pressed={tab() === 'friends'} onClick={() => setTab('friends')}>
+            フレンド
+          </button>
+          <button aria-pressed={tab() === 'instances'} onClick={() => setTab('instances')}>
+            インスタンス
+          </button>
+          <span class="outside-mode">
+            Web・モバイルのフレンド:
+            <label>
+              <input
+                type="radio"
+                name="outsideMode"
+                checked={outsideMode() === 'separate'}
+                onChange={() => setOutsideMode('separate')}
+              />{' '}
+              分けて表示
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="outsideMode"
+                checked={outsideMode() === 'hidden'}
+                onChange={() => setOutsideMode('hidden')}
+              />{' '}
+              非表示
+            </label>
+          </span>
+        </nav>
+        <main>
+          <Show when={tab() === 'friends'} fallback={<InstancesTab />}>
+            <FriendsTab />
+          </Show>
+        </main>
+      </Show>
     </>
   );
 }
