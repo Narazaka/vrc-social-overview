@@ -72,6 +72,37 @@ export const fetchFriends = () => getAll<Friend>('/auth/user/friends?offline=fal
 export const fetchFavorites = () => getAll<Favorite>('/favorites?type=friend');
 export const fetchFavoriteGroups = () => get<FavoriteGroup[]>('/favorite/groups?type=friend&n=50');
 export const fetchInstance = (loc: string) => limited(() => get<Instance>(`/instances/${loc}`));
+// プロフィール（自己紹介・リンク・バッジ等）は /users/{id} ではなく /profile/{id} にある
+export type Profile = {
+  id: string;
+  displayName: string;
+  iconUrl: string;
+  pronouns: string;
+  bio: string;
+  bioLinks: string[];
+  languages: string[];
+  trustTags: string[];
+  badges: { badgeName: string; badgeDescription: string; badgeImageUrl: string; showcased: boolean }[];
+  representedGroup: { id: string; name: string; iconUrl: string } | null;
+};
+export const fetchProfile = (id: string) => limited(() => get<Profile>(`/profile/${id}`));
+// 自分がそのユーザーに付けたメモと、今のステータス（変わりやすい部分）
+// メモ。ステータスも返るが、フレンド一覧（のちに WebSocket で更新）の値を使うので読まない
+export const fetchNote = (id: string) =>
+  limited(() => get<{ note?: string }>(`/profile/${id}/private`)).then(p => p.note ?? '');
+
+// 信頼ランク。trustTags は下位のものも全部入るので上位から探す。[表示名, 色分け用のキー]
+const TRUST_RANKS: [string, string, string][] = [
+  ['system_trust_veteran', 'Trusted User', 'trusted'],
+  ['system_trust_trusted', 'Known User', 'known'],
+  ['system_trust_known', 'User', 'user'],
+  ['system_trust_basic', 'New User', 'new'],
+];
+export function trustRank(tags: string[]): [string, string] {
+  const rank = TRUST_RANKS.find(([tag]) => tags.includes(tag));
+  return rank ? [rank[1], rank[2]] : ['Visitor', 'visitor'];
+}
+
 export const fetchWorld = (worldId: string) => limited(() => get<World>(`/worlds/${worldId}`));
 
 // フレンド以外のユーザーは currentAvatarImageUrl が返らないので iconUrl で代用する

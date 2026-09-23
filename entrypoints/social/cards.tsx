@@ -12,7 +12,7 @@ import {
   outsideGame,
   placeIcon,
 } from '@/lib/vrchat';
-import { byLoc, favClass, instanceOf, ownerOf, state, worldOf } from './state';
+import { byLoc, favClass, instanceOf, openProfile, ownerOf, state, worldOf } from './state';
 
 const OWNER_KIND_LABEL = {
   friend: 'オーナー（フレンド）',
@@ -22,7 +22,7 @@ const OWNER_KIND_LABEL = {
 };
 
 // 画面に近づいてから画像 URL を解決して表示する（画像 API へのアクセスを見えるものだけに絞る）
-function Img(p: { src: string | undefined; class?: string }) {
+export function Img(p: { src: string | undefined; class?: string }) {
   const [visible, setVisible] = createSignal(false);
   const [src, setSrc] = createSignal<string>();
   const observe = (el: HTMLImageElement) => {
@@ -53,7 +53,7 @@ function Img(p: { src: string | undefined; class?: string }) {
 }
 
 // ゲーム外（Web・モバイル）のフレンドは VRChat の慣例どおり輪郭だけの丸にする
-const Dot = (p: { f: Friend }) => (
+export const Dot = (p: { f: Friend }) => (
   <span
     class="dot"
     classList={{ outside: outsideGame(p.f) }}
@@ -63,7 +63,11 @@ const Dot = (p: { f: Friend }) => (
 
 export function Member(p: { f: Friend }) {
   return (
-    <div class={`member ${favClass(p.f.id)}`} title={p.f.statusDescription}>
+    <div
+      class={`member clickable ${favClass(p.f.id)}`}
+      title={p.f.statusDescription}
+      onClick={() => openProfile(p.f.id)}
+    >
       <Img src={img(p.f.currentAvatarImageUrl, 64)} />
       <Dot f={p.f} />
       <span>{p.f.displayName}</span>
@@ -124,7 +128,9 @@ function InstanceHead(p: { loc: string; compact?: boolean }) {
             {o => (
               <span
                 class={`member owner owner-${o().kind} ${o().kind === 'friend' ? favClass(ownerId()!) : ''}`}
+                classList={{ clickable: !o().kind.startsWith('group') }}
                 title={OWNER_KIND_LABEL[o().kind]}
+                onClick={() => !o().kind.startsWith('group') && openProfile(ownerId()!)}
               >
                 <Img src={img(o().image, 64)} />
                 <Show when={o().kind === 'friend'}>
@@ -163,9 +169,11 @@ export function FriendCard(p: { f: Friend }) {
   return (
     <section class="card" classList={{ outside: outsideGame(p.f) }}>
       <div class="subject">
-        <Img src={img(p.f.currentAvatarImageUrl, 128)} />
+        <span class="clickable" onClick={() => openProfile(p.f.id)}>
+          <Img src={img(p.f.currentAvatarImageUrl, 128)} />
+        </span>
         <div>
-          <div class="name">
+          <div class="name clickable" onClick={() => openProfile(p.f.id)}>
             <Dot f={p.f} />
             {p.f.displayName}
           </div>

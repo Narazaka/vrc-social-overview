@@ -1,4 +1,4 @@
-import { createMemo, createRoot } from 'solid-js';
+import { createMemo, createRoot, createSignal } from 'solid-js';
 import { createStore } from 'solid-js/store';
 import {
   fetchFavoriteGroups,
@@ -60,6 +60,10 @@ export const [state, setState] = createStore({
   // worldId ごと。前回までに保存したものから始まり、インスタンス取得のたびに更新する
   worlds: worldCache.all(),
 });
+
+// プロフィールパネルで表示中のユーザー
+export const [profileId, setProfileId] = createSignal<string>();
+export const openProfile = (id: string) => setProfileId(id);
 
 export const byLoc = createRoot(() => createMemo(() => Map.groupBy(state.friends.filter(inWorld), f => f.location)));
 export const friendsById = createRoot(() => createMemo(() => new Map(state.friends.map(f => [f.id, f]))));
