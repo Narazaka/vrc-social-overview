@@ -54,7 +54,11 @@ async function getAll<T>(path: string): Promise<T[]> {
   }
 }
 
-export const fetchMe = () => get<{ displayName: string }>('/auth/user');
+// friends にはオフラインを含むフレンド全員の ID が入っている
+export const fetchMe = () => get<{ id: string; displayName: string; friends: string[] }>('/auth/user');
+// ponytail: ページ送りせず 1 回で取得（約 200 件は 1 回で返る）。取りこぼしが出たら offset でページ送りする
+export const fetchMyGroupIds = (userId: string) =>
+  get<{ groupId: string }[]>(`/users/${userId}/groups`).then(gs => gs.map(g => g.groupId));
 export const fetchFriends = () => getAll<Friend>('/auth/user/friends?offline=false');
 export const fetchFavorites = () => getAll<Favorite>('/favorites?type=friend');
 export const fetchFavoriteGroups = () => get<FavoriteGroup[]>('/favorite/groups?type=friend&n=50');

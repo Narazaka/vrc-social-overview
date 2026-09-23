@@ -2,6 +2,13 @@ import { For, Show } from 'solid-js';
 import { img, inWorld, instanceType, ownerIdOf, sizeClass, STATUS_COLOR, worldStatus, type Friend } from '@/lib/vrchat';
 import { byLoc, favClass, instanceOf, ownerOf, state } from './state';
 
+const OWNER_KIND_LABEL = {
+  friend: 'オーナー（フレンド）',
+  stranger: 'オーナー（フレンドではないユーザー）',
+  'group-member': 'オーナー（加入しているグループ）',
+  group: 'オーナー（加入していないグループ）',
+};
+
 const Dot = (p: { f: Friend }) => <span class="dot" style={{ background: STATUS_COLOR[p.f.status] ?? '#999' }} />;
 
 export function Member(p: { f: Friend }) {
@@ -56,8 +63,16 @@ function InstanceHead(p: { loc: string; compact?: boolean }) {
           </Show>
           <Show when={ownerId() ? ownerOf(ownerId()!) : undefined}>
             {o => (
-              <span class="member owner">
+              <span
+                class={`member owner owner-${o().kind} ${o().kind === 'friend' ? favClass(ownerId()!) : ''}`}
+                title={OWNER_KIND_LABEL[o().kind]}
+              >
                 <img loading="lazy" src={img(o().image, 64)} />
+                <Show when={o().kind === 'friend'}>
+                  <Show when={o().friend} fallback={<span class="dot offline" title="オフライン" />}>
+                    {f => <Dot f={f()} />}
+                  </Show>
+                </Show>
                 {o().name}
               </span>
             )}

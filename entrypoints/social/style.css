@@ -275,6 +275,24 @@ h2[class^='fav-'] {
   color: var(--sub);
   gap: 3px;
 }
+/* オーナーが自分とつながりがある（フレンド・加入グループ）なら明るく、ないなら暗い斜体にして見分ける */
+.owner-friend,
+.owner-group-member {
+  color: var(--text);
+}
+.owner-stranger,
+.owner-group {
+  font-style: italic;
+  opacity: 0.7;
+}
+.dot.offline {
+  background: #555;
+}
+.owner.fav {
+  border-style: solid;
+  border-width: 1px;
+  padding-right: 4px;
+}
 .owner img {
   width: 20px;
   height: 15px;

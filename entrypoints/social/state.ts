@@ -6,6 +6,7 @@ import {
   fetchFriends,
   fetchInstance,
   fetchMe,
+  fetchMyGroupIds,
   fetchOwner,
   inWorld,
   ownerIdOf,
@@ -41,16 +42,30 @@ export const favClass = (id: string) => {
   return group ? `fav fav-${group}` : '';
 };
 
-export function ownerOf(id: string): Owner | undefined {
+// オフラインを含む全フレンドと、加入しているグループ。読み込み時に一度だけ設定する
+let allFriendIds = new Set<string>();
+let myGroupIds = new Set<string>();
+
+// kind: オーナーとの関係。friend はオンラインなら friend に本人の情報が入る
+export type OwnerView = Owner & { kind: 'friend' | 'stranger' | 'group-member' | 'group'; friend?: Friend };
+
+export function ownerOf(id: string): OwnerView | undefined {
   const f = friendsById().get(id);
-  return f ? { name: f.displayName, image: f.currentAvatarImageUrl } : state.owners[id];
+  if (f) return { name: f.displayName, image: f.currentAvatarImageUrl, kind: 'friend', friend: f };
+  const o = state.owners[id];
+  if (!o) return undefined;
+  if (id.startsWith('grp_')) return { ...o, kind: myGroupIds.has(id) ? 'group-member' : 'group' };
+  return { ...o, kind: allFriendIds.has(id) ? 'friend' : 'stranger' };
 }
 
 const ownerRequested = new Set<string>();
 
 export async function load() {
   try {
-    setState('me', (await fetchMe()).displayName);
+    const me = await fetchMe();
+    allFriendIds = new Set(me.friends);
+    myGroupIds = new Set(await fetchMyGroupIds(me.id));
+    setState('me', me.displayName);
   } catch (e) {
     setState({ loginRequired: true, error: (e as Error).message });
     return;
