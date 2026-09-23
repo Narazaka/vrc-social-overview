@@ -1,4 +1,4 @@
-import { fetchAuthToken } from './vrchat';
+import { AuthError, fetchAuthToken } from './vrchat';
 
 // VRChat の Pipeline（WebSocket）。フレンドのオンライン・移動・ステータス変更などが届く
 const PIPELINE_URL = 'wss://pipeline.vrchat.cloud/';
@@ -12,21 +12,27 @@ export type PipelineHandlers = {
   onStatus: (connected: boolean) => void;
 };
 
+// 返り値の関数で切断し、以後は繋ぎ直さない
 export function connectPipeline(h: PipelineHandlers) {
   let failures = 0;
   let connectedOnce = false;
+  let stopped = false;
+  let ws: WebSocket | undefined;
   const retry = () => {
+    if (stopped) return;
     h.onStatus(false);
     setTimeout(connect, Math.min(1000 * 2 ** failures++, MAX_RETRY_DELAY));
   };
   async function connect() {
+    if (stopped) return;
     let token: string;
     try {
       token = await fetchAuthToken();
-    } catch {
-      return retry();
+    } catch (e) {
+      // ログインが切れていれば繋ぎ直しても無駄なので諦める（ログイン切れの表示は API 側から出る）
+      return e instanceof AuthError ? undefined : retry();
     }
-    const ws = new WebSocket(`${PIPELINE_URL}?authToken=${encodeURIComponent(token)}`);
+    ws = new WebSocket(`${PIPELINE_URL}?authToken=${encodeURIComponent(token)}`);
     ws.onopen = () => {
       failures = 0;
       h.onStatus(true);
@@ -46,4 +52,8 @@ export function connectPipeline(h: PipelineHandlers) {
     ws.onclose = retry;
   }
   connect();
+  return () => {
+    stopped = true;
+    ws?.close();
+  };
 }

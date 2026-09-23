@@ -21,15 +21,48 @@ export type Owner = { name: string; image: string };
 export type Favorite = { favoriteId: string; tags: string[] };
 export type FavoriteGroup = { name: string; displayName: string };
 
+// ログインが切れている（401）。ログインし直すまで何を取っても失敗する
+export class AuthError extends Error {}
+let onAuthLost = () => {};
+export const setAuthLostHandler = (fn: () => void) => {
+  onAuthLost = fn;
+};
+
+// 429（レート制限）や一時的なサーバーエラーのときは、以降のリクエストもまとめて止めてから再試行する。
+// 待ち時間は Retry-After があればそれに従い、無ければ失敗が続くほど延ばす
+const MAX_RETRIES = 3;
+const MIN_BACKOFF = 5 * 1000;
+const MAX_BACKOFF = 60 * 1000;
+let backoff = MIN_BACKOFF;
+let pausedUntil = 0;
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
 // vrchat.com のログイン Cookie がそのまま送られる（host_permissions による）
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(API + path, { credentials: 'include' });
-  if (!res.ok) throw new Error(`${res.status} ${path}`);
-  return res.json();
+  for (let attempt = 0; ; attempt++) {
+    const wait = pausedUntil - Date.now();
+    if (wait > 0) await sleep(wait);
+    const res = await fetch(API + path, { credentials: 'include' });
+    if (res.ok) {
+      backoff = MIN_BACKOFF;
+      return res.json();
+    }
+    if (res.status === 401) {
+      onAuthLost();
+      throw new AuthError(`${res.status} ${path}`);
+    }
+    if ((res.status === 429 || res.status >= 500) && attempt < MAX_RETRIES) {
+      // Retry-After は秒数。日付形式や欠けているときは NaN / 0 になるので自前の待ち時間を使う
+      const retryAfter = Number(res.headers.get('Retry-After')) * 1000;
+      pausedUntil = Math.max(pausedUntil, Date.now() + (retryAfter || backoff));
+      backoff = Math.min(backoff * 2, MAX_BACKOFF);
+      continue;
+    }
+    throw new Error(`${res.status} ${path}`);
+  }
 }
 
 // インスタンス数だけ API を叩くので、同時リクエスト数を絞ってレート制限を避ける
-// ponytail: 固定並列数のみ。429 が出るようなら間隔制御・リトライを入れる
 export function createLimiter(concurrency: number) {
   const queue: (() => void)[] = [];
   let active = 0;

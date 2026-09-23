@@ -2,6 +2,7 @@ import { createMemo, createRoot, createSignal } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
 import { connectPipeline } from '@/lib/pipeline';
 import {
+  setAuthLostHandler,
   fetchAvatarImage,
   fetchFavoriteGroups,
   fetchFavorites,
@@ -315,6 +316,13 @@ function logEvent(type: string, id: string, c: any) {
   setState('eventLog', log => [entry, ...log.slice(0, MAX_LOG - 1)]);
 }
 
+let stopPipeline: (() => void) | undefined;
+// ログインが切れたら（開いた時点でも、使っている途中でも）接続をやめてログインを促す
+setAuthLostHandler(() => {
+  stopPipeline?.();
+  setState({ loginRequired: true, live: undefined });
+});
+
 export async function load() {
   try {
     const me = await fetchMe();
@@ -322,14 +330,15 @@ export async function load() {
     myGroupIds = new Set(await fetchMyGroupIds(me.id));
     setState('me', me.displayName);
   } catch (e) {
-    setState({ loginRequired: true, error: (e as Error).message });
+    // ログイン切れは上のハンドラーが表示を切り替える。それ以外（通信エラーなど）はエラーとして出す
+    setState('error', (e as Error).message);
     return;
   }
   const [friends, favs, favGroups] = await Promise.all([fetchFriends(), fetchFavorites(), fetchFavoriteGroups()]);
   setState({ favGroups, favTags: Object.fromEntries(favs.map(f => [f.favoriteId, f.tags])) });
   await syncFriends(friends);
   // ponytail: 一覧の取得から接続までの間のイベントは取りこぼす。気になるなら接続してから一覧を取る
-  connectPipeline({
+  stopPipeline = connectPipeline({
     onEvent,
     onReconnect: () => void syncFriends(),
     onStatus: live => setState('live', live),
