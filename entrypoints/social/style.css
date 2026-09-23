@@ -430,14 +430,14 @@ h2[class^='fav-'] {
 .clickable:hover {
   filter: brightness(1.2);
 }
-/* プロフィールパネル（右からせり出す） */
-.profile-backdrop {
+/* 詳細パネル（ユーザー・ワールド。右からせり出す） */
+.drawer-backdrop {
   position: fixed;
   inset: 0;
   z-index: 10;
   background: rgb(0 0 0 / 0.4);
 }
-.profile {
+.drawer {
   position: absolute;
   top: 0;
   right: 0;
@@ -450,7 +450,7 @@ h2[class^='fav-'] {
   border-left: 1px solid var(--line);
   box-shadow: -4px 0 12px rgb(0 0 0 / 0.5);
 }
-.profile-close {
+.drawer-close {
   position: absolute;
   top: 8px;
   right: 8px;
@@ -461,43 +461,51 @@ h2[class^='fav-'] {
   border: none;
   cursor: pointer;
 }
-.profile-head {
+.drawer-head {
   display: flex;
   gap: 12px;
   align-items: center;
 }
-.profile-head img {
+.drawer-head img {
   width: 128px;
   height: 96px;
   object-fit: cover;
   border-radius: 6px;
   flex: none;
 }
-.profile-head .name {
+.drawer-head .name {
   font-size: 16px;
   margin-bottom: 4px;
 }
-.profile-section {
+.drawer-section {
   margin-top: 14px;
 }
-.profile-section h3 {
+.drawer-section h3 {
   margin: 0 0 4px;
   font-size: 12px;
   color: var(--sub);
 }
-.profile-section p {
+.drawer-section p {
   margin: 0;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   color: var(--text);
 }
-.profile-section.note {
+.drawer-section.note {
   padding: 8px;
   border-radius: 4px;
   background: color-mix(in srgb, #e0a000 12%, var(--card));
   border-left: 3px solid #e0a000;
 }
-.profile a {
+.world-image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 6px;
+  margin: 20px 0 8px;
+}
+.drawer a {
   color: var(--accent);
 }
 .badges {

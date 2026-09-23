@@ -61,9 +61,9 @@ export const [state, setState] = createStore({
   worlds: worldCache.all(),
 });
 
-// プロフィールパネルで表示中のユーザー
-export const [profileId, setProfileId] = createSignal<string>();
-export const openProfile = (id: string) => setProfileId(id);
+// 詳細パネルで表示中のユーザー（usr_）またはワールド（wrld_）
+export const [drawerId, setDrawerId] = createSignal<string>();
+export const openDrawer = (id: string) => setDrawerId(id);
 
 export const byLoc = createRoot(() => createMemo(() => Map.groupBy(state.friends.filter(inWorld), f => f.location)));
 export const friendsById = createRoot(() => createMemo(() => new Map(state.friends.map(f => [f.id, f]))));
@@ -76,7 +76,7 @@ export const instanceOf = (loc: string) => {
 // 定員は通常ワールドで決まるので、インスタンスではなくワールドの値を使う
 export const worldOf = (loc: string): World | undefined => state.worlds[worldIdOf(loc)];
 
-function setWorld(worldId: string, w: World) {
+export function setWorld(worldId: string, w: World) {
   const slim = slimWorld(w);
   setState('worlds', worldId, slim);
   worldCache.set(worldId, slim);

@@ -7,12 +7,13 @@ import {
   ownerIdOf,
   sizeClass,
   STATUS_COLOR,
+  worldIdOf,
   worldStatus,
   type Friend,
   outsideGame,
   placeIcon,
 } from '@/lib/vrchat';
-import { byLoc, favClass, instanceOf, openProfile, ownerOf, state, worldOf } from './state';
+import { byLoc, favClass, instanceOf, openDrawer, ownerOf, state, worldOf } from './state';
 
 const OWNER_KIND_LABEL = {
   friend: 'オーナー（フレンド）',
@@ -66,7 +67,7 @@ export function Member(p: { f: Friend }) {
     <div
       class={`member clickable ${favClass(p.f.id)}`}
       title={p.f.statusDescription}
-      onClick={() => openProfile(p.f.id)}
+      onClick={() => openDrawer(p.f.id)}
     >
       <Img src={img(p.f.currentAvatarImageUrl, 64)} />
       <Dot f={p.f} />
@@ -103,15 +104,18 @@ function InstanceHead(p: { loc: string; compact?: boolean }) {
   const inst = () => instanceOf(p.loc);
   // インスタンス取得前は保存済みのワールド情報で名前とサムネイルを出す
   const world = () => worldOf(p.loc);
+  const openWorld = () => openDrawer(worldIdOf(p.loc));
   const title = () => {
     const i = state.instances[p.loc];
     return i && 'error' in i ? `取得失敗 (${i.error})` : (world()?.name ?? '読み込み中…');
   };
   return (
     <div class="head" classList={{ compact: p.compact }}>
-      <Img class="thumb" src={img(world()?.thumbnailImageUrl, 128)} />
+      <span class="clickable" onClick={openWorld}>
+        <Img class="thumb" src={img(world()?.thumbnailImageUrl, 128)} />
+      </span>
       <div>
-        <div class="title">
+        <div class="title clickable" onClick={openWorld}>
           <Show when={world() && worldStatus(world()!)}>
             {ws => (
               <span class="wstat" title={ws()[1]}>
@@ -130,7 +134,7 @@ function InstanceHead(p: { loc: string; compact?: boolean }) {
                 class={`member owner owner-${o().kind} ${o().kind === 'friend' ? favClass(ownerId()!) : ''}`}
                 classList={{ clickable: !o().kind.startsWith('group') }}
                 title={OWNER_KIND_LABEL[o().kind]}
-                onClick={() => !o().kind.startsWith('group') && openProfile(ownerId()!)}
+                onClick={() => !o().kind.startsWith('group') && openDrawer(ownerId()!)}
               >
                 <Img src={img(o().image, 64)} />
                 <Show when={o().kind === 'friend'}>
@@ -169,11 +173,11 @@ export function FriendCard(p: { f: Friend }) {
   return (
     <section class="card" classList={{ outside: outsideGame(p.f) }}>
       <div class="subject">
-        <span class="clickable" onClick={() => openProfile(p.f.id)}>
+        <span class="clickable" onClick={() => openDrawer(p.f.id)}>
           <Img src={img(p.f.currentAvatarImageUrl, 128)} />
         </span>
         <div>
-          <div class="name clickable" onClick={() => openProfile(p.f.id)}>
+          <div class="name clickable" onClick={() => openDrawer(p.f.id)}>
             <Dot f={p.f} />
             {p.f.displayName}
           </div>

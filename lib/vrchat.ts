@@ -103,7 +103,22 @@ export function trustRank(tags: string[]): [string, string] {
   return rank ? [rank[1], rank[2]] : ['Visitor', 'visitor'];
 }
 
-export const fetchWorld = (worldId: string) => limited(() => get<World>(`/worlds/${worldId}`));
+// 一覧には World の項目だけを使い、詳細パネルでは残りも使う
+export type WorldDetail = World & {
+  id: string;
+  description: string;
+  authorId: string;
+  authorName: string;
+  recommendedCapacity: number;
+  imageUrl: string;
+  publicationDate: string;
+  labsPublicationDate: string;
+  updated_at: string;
+  unityPackages: { platform: string }[];
+  favorites: number;
+  visits: number;
+};
+export const fetchWorld = (worldId: string) => limited(() => get<WorldDetail>(`/worlds/${worldId}`));
 
 // フレンド以外のユーザーは currentAvatarImageUrl が返らないので iconUrl で代用する
 export function fetchOwner(id: string): Promise<Owner> {
@@ -119,8 +134,8 @@ export function fetchOwner(id: string): Promise<Owner> {
 }
 
 // 拡張の host_permissions に収めるため、画像 URL のホストを vrchat.com に揃える
-// 大きい画像を縮小表示するとジャギるので、/image/{file}/{version}/{size} 形式で表示サイズに近いもの（64/128/256）を取る
-export const img = (url: string | undefined, size: 64 | 128 | 256) =>
+// 大きい画像を縮小表示するとジャギるので、/image/{file}/{version}/{size} 形式で表示サイズに近いもの（64/128/256/512）を取る
+export const img = (url: string | undefined, size: 64 | 128 | 256 | 512) =>
   url
     ? url
         .replace('://api.vrchat.cloud/', '://vrchat.com/')

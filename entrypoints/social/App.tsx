@@ -1,7 +1,7 @@
 import { For, onMount, Show } from 'solid-js';
 import { inPrivate, inWorld, outsideGame, type Friend } from '@/lib/vrchat';
 import { FriendCard, InstanceCard, Member } from './cards';
-import { ProfilePanel } from './profile';
+import { Drawer } from './drawer';
 import { persisted } from './settings';
 import { byLoc, instanceOf, load, setState, state } from './state';
 
@@ -248,7 +248,7 @@ export function App() {
             <FriendsTab />
           </Show>
         </main>
-        <ProfilePanel />
+        <Drawer />
       </Show>
     </>
   );
