@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "jsPlugins": ["eslint-plugin-solid"],
+  "rules": {
+    "solid/reactivity": "error",
+    "solid/no-destructure": "error",
+    "solid/components-return-once": "error",
+    "solid/jsx-no-undef": "error",
+    "solid/no-react-specific-props": "error",
+    "solid/prefer-for": "error",
+    "solid/self-closing-comp": "warn"
+  }
+}
