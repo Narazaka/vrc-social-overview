@@ -1,6 +1,7 @@
 import { For, onMount, Show } from 'solid-js';
 import { inPrivate, inWorld, outsideGame, type Friend } from '@/lib/vrchat';
 import { FriendCard, InstanceCard, Member } from './cards';
+import { LogTab } from './log';
 import { Drawer } from './drawer';
 import { persisted } from './settings';
 import { byLoc, instanceOf, load, setState, state } from './state';
@@ -30,7 +31,7 @@ const INSTANCE_SORTS = {
 const keysOf = <K extends string>(o: Record<K, unknown>) => Object.keys(o) as K[];
 
 // 表示設定（開き直しても保つ）
-const [tab, setTab] = persisted<'friends' | 'instances'>('tab', 'friends', ['friends', 'instances']);
+const [tab, setTab] = persisted<'friends' | 'instances' | 'log'>('tab', 'friends', ['friends', 'instances', 'log']);
 // ゲーム外（Web・モバイル）のフレンドを別の行に分けて出すか、隠すか
 const [outsideMode, setOutsideMode] = persisted<'separate' | 'hidden'>('outsideMode', 'separate', [
   'separate',
@@ -228,6 +229,9 @@ export function App() {
           <button aria-pressed={tab() === 'instances'} onClick={() => setTab('instances')}>
             インスタンス
           </button>
+          <button aria-pressed={tab() === 'log'} onClick={() => setTab('log')}>
+            イベント ({state.eventLog.length})
+          </button>
           <span class="outside-mode">
             Web・モバイルのフレンド:
             <label>
@@ -251,8 +255,14 @@ export function App() {
           </span>
         </nav>
         <main>
-          <Show when={tab() === 'friends'} fallback={<InstancesTab />}>
+          <Show when={tab() === 'friends'}>
             <FriendsTab />
+          </Show>
+          <Show when={tab() === 'instances'}>
+            <InstancesTab />
+          </Show>
+          <Show when={tab() === 'log'}>
+            <LogTab />
           </Show>
         </main>
         <Drawer />

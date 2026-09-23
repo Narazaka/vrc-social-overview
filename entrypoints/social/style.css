@@ -221,6 +221,9 @@ h2 {
 /* Group Public は Public と同じ青、Group+ → メンバー限定は紫系統で濃くしていく */
 .group-public {
   --c: #3b7cf0;
+}
+/* 居場所の枠にも同じクラスが付くので、文字を詰めるのはバッジだけにする */
+.badge.group-public {
   font-size: 9px;
   letter-spacing: -0.02em;
 }
@@ -560,4 +563,31 @@ h2[class^='fav-'] {
 }
 .live.on {
   color: #66bb6a;
+}
+/* イベントログ */
+.log {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr;
+  gap: 2px 10px;
+  align-items: baseline;
+}
+.log-row {
+  display: contents;
+}
+.log-row .ev {
+  font-weight: bold;
+  color: var(--sub);
+}
+.ev-friend-online .ev,
+.ev-friend-active .ev {
+  color: #66bb6a;
+}
+.ev-friend-offline .ev {
+  color: #888;
+}
+.ev-friend-location .ev {
+  color: #7fa8ff;
+}
+.log-row .fav {
+  color: var(--fav);
 }

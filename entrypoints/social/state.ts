@@ -44,6 +44,10 @@ const slimWorld = (w: World): World => ({
   tags: w.tags.filter(t => t === 'system_approved'),
 });
 
+// loc: 居場所が関係するイベントの移動先。text: それ以外の内容の要約
+export type LogEntry = { at: number; type: string; userId: string; name: string; loc?: string; text?: string };
+const MAX_LOG = 500;
+
 // stale: 期限切れの保存値を取り直し中
 export type InstanceState = { userCount: number; stale?: boolean };
 
@@ -65,6 +69,8 @@ export const [state, setState] = createStore({
   live: undefined as boolean | undefined,
   // Pipeline で居場所が変わったのを受け取った時刻（ページを開いてから分のみ）
   movedAt: {} as Record<string, number>,
+  // Pipeline で受け取ったイベント（新しい順、ページを開いてからの分のみ）
+  eventLog: [] as LogEntry[],
 });
 
 // 詳細パネルで表示中のユーザー（usr_）またはワールド（wrld_）
@@ -247,6 +253,7 @@ function removeFriend(id: string) {
 function onEvent(type: string, c: any) {
   const id: string | undefined = c?.userId ?? c?.userid;
   if (!id) return;
+  logEvent(type, id, c);
   switch (type) {
     case 'friend-online':
     case 'friend-location':
@@ -268,6 +275,44 @@ function onEvent(type: string, c: any) {
       allFriendIds.delete(id);
       return removeFriend(id);
   }
+}
+
+// 更新イベントで何が変わったかを比べるため、各ユーザーについて最後に受け取った user を覚えておく。
+// まだ受け取っていない人は、フレンド一覧で取った値（API の応答の全項目が入っている）と比べる
+type UserRecord = Record<string, unknown>;
+const lastUser = new Map<string, UserRecord>();
+
+// 変わった項目を「項目名: 新しい値」の形で並べる。タグは増減、長い値は項目名だけ
+function describeChanges(before: UserRecord, after: UserRecord): string {
+  const parts: string[] = [];
+  for (const k of Object.keys(after)) {
+    if (!(k in before) || JSON.stringify(before[k]) === JSON.stringify(after[k])) continue;
+    const [b, a] = [before[k], after[k]];
+    if (Array.isArray(a) && Array.isArray(b)) {
+      const diff = [
+        ...a.filter(x => !b.includes(x)).map(x => `+${x}`),
+        ...b.filter(x => !a.includes(x)).map(x => `-${x}`),
+      ];
+      parts.push(`${k}: ${diff.join(' ')}`);
+    } else if (typeof a === 'string' && a.length <= 60) parts.push(`${k}: ${a || '（なし）'}`);
+    else parts.push(k);
+  }
+  return parts.join(' / ');
+}
+
+// イベントの要約をログに残す。反映する前の状態と比べるので、反映より先に呼ぶ
+function logEvent(type: string, id: string, c: any) {
+  const prev = friendsById().get(id);
+  const entry: LogEntry = { at: Date.now(), type, userId: id, name: c.user?.displayName ?? prev?.displayName ?? id };
+  if (type === 'friend-online' || type === 'friend-location') entry.loc = c.location;
+  else if (type === 'friend-update') {
+    const before = lastUser.get(id) ?? (prev as UserRecord | undefined);
+    entry.text = before
+      ? describeChanges(before, c.user ?? {}) || '（比べられる項目に変化なし）'
+      : '（前の値が無く比べられない）';
+  }
+  if (c.user) lastUser.set(id, c.user);
+  setState('eventLog', log => [entry, ...log.slice(0, MAX_LOG - 1)]);
 }
 
 export async function load() {
