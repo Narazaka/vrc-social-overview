@@ -128,13 +128,21 @@ function InstanceHead(p: { loc: string; compact?: boolean }) {
     const i = state.instances[p.loc];
     return i && 'error' in i ? `取得失敗 (${i.error})` : (world()?.name ?? '読み込み中…');
   };
+  // サムネイルはゲームで開き、それ以外の部分はワールドの詳細を開く（作者・オーナーはそれぞれのプロフィール）
   return (
-    <div class="head" classList={{ compact: p.compact }}>
-      <span class="clickable" title={LAUNCH_TITLE} onClick={() => void openInGame(p.loc)}>
+    <div class="head" classList={{ compact: p.compact }} onClick={openWorld}>
+      <span
+        class="clickable"
+        title={LAUNCH_TITLE}
+        onClick={e => {
+          e.stopPropagation();
+          void openInGame(p.loc);
+        }}
+      >
         <Img class={`thumb ws-${world() && worldStatus(world()!)?.[1]}`} src={img(world()?.thumbnailImageUrl, 128)} />
       </span>
       <div>
-        <div class="title clickable" onClick={openWorld}>
+        <div class="title">
           {title()}
           <Show when={world()?.authorName}>
             {name => (
@@ -142,7 +150,6 @@ function InstanceHead(p: { loc: string; compact?: boolean }) {
                 class="author clickable"
                 title="ワールドの作者"
                 onClick={e => {
-                  // ワールド名のクリック（ワールドの詳細を開く）に伝わらないようにする
                   e.stopPropagation();
                   openDrawer(world()!.authorId!);
                 }}
@@ -153,9 +160,7 @@ function InstanceHead(p: { loc: string; compact?: boolean }) {
           </Show>
         </div>
         <div class="meta">
-          <span class={`badge clickable ${type()[1]}`} title={LAUNCH_TITLE} onClick={() => void openInGame(p.loc)}>
-            {type()[0]}
-          </span>
+          <span class={`badge ${type()[1]}`}>{type()[0]}</span>
           <Show when={inst()}>{i => <Capacity n={i().userCount} cap={world()?.capacity} stale={i().stale} />}</Show>
           <Show when={ownerId() ? ownerOf(ownerId()!) : undefined}>
             {o => (
@@ -163,7 +168,12 @@ function InstanceHead(p: { loc: string; compact?: boolean }) {
                 class={`member owner owner-${o().kind} ${o().kind === 'friend' ? favClass(ownerId()!) : ''}`}
                 classList={{ clickable: !o().kind.startsWith('group') }}
                 title={OWNER_KIND_LABEL[o().kind]}
-                onClick={() => !o().kind.startsWith('group') && openDrawer(ownerId()!)}
+                onClick={e => {
+                  // グループはプロフィールが無いので、そのままワールドの詳細を開く
+                  if (o().kind.startsWith('group')) return;
+                  e.stopPropagation();
+                  openDrawer(ownerId()!);
+                }}
               >
                 <Img src={img(o().image, 64)} />
                 <Show when={o().kind === 'friend'}>
@@ -220,17 +230,21 @@ export function FriendCard(p: { f: Friend }) {
   const others = () => (inWorld(p.f) ? (byLoc().get(p.f.location) ?? []).filter(m => m.id !== p.f.id) : []);
   return (
     <section class="card" classList={{ outside: outsideGame(p.f) }}>
-      <div class="subject">
-        {/* ワールドにいればそのインスタンスをゲームで開き、いなければプロフィールを開く */}
+      {/* アバターはワールドにいればそのインスタンスをゲームで開き、それ以外の部分はプロフィールを開く */}
+      <div class="subject" onClick={() => openDrawer(p.f.id)}>
         <span
           class="clickable"
           title={inWorld(p.f) ? LAUNCH_TITLE : undefined}
-          onClick={() => (inWorld(p.f) ? void openInGame(p.f.location) : openDrawer(p.f.id))}
+          onClick={e => {
+            if (!inWorld(p.f)) return;
+            e.stopPropagation();
+            void openInGame(p.f.location);
+          }}
         >
           <Img src={img(p.f.currentAvatarImageUrl, 128)} />
         </span>
         <div>
-          <div class="name clickable" onClick={() => openDrawer(p.f.id)}>
+          <div class="name">
             <Dot f={p.f} />
             {p.f.displayName}
           </div>

@@ -633,3 +633,8 @@ h2[class^='fav-'] {
 .wsb-labs {
   --c: #43a047;
 }
+/* 全体がクリックで詳細を開く領域 */
+.head,
+.subject {
+  cursor: pointer;
+}
