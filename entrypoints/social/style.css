@@ -233,10 +233,6 @@ h2 {
 .group-members {
   --c: #7a48d0;
 }
-.wstat {
-  cursor: help;
-  margin-right: 3px;
-}
 .cap {
   display: inline-flex;
   flex-direction: column;
@@ -622,4 +618,18 @@ h2[class^='fav-'] {
 }
 .launch:hover {
   background: #355235;
+}
+/* 正式公開でないワールドはサムネイルを枠で目立たせる */
+.ws-private {
+  box-shadow: 0 0 0 1px #e53935;
+}
+.ws-labs {
+  box-shadow: 0 0 0 1px #43a047;
+}
+/* 詳細パネルのワールドの公開状態（サムネイルの枠と同じ色） */
+.wsb-private {
+  --c: #e53935;
+}
+.wsb-labs {
+  --c: #43a047;
 }

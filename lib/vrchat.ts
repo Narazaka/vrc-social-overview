@@ -241,10 +241,11 @@ export function instanceType(loc: string): [string, string] {
 }
 
 // 正式公開（Labs 卒業済み）のワールドは何も出さず、それ以外だけアイコンで注記する。[アイコン, 説明]
+// [表示名, 色分け用のキー]。正式公開のワールドは undefined
 export function worldStatus(w: World): [string, string] | undefined {
-  if (w.releaseStatus === 'private') return ['🔒', 'Private World'];
-  if (w.releaseStatus !== 'public') return ['⚠', w.releaseStatus];
-  return w.tags.includes('system_approved') ? undefined : ['🧪', 'Community Labs'];
+  if (w.releaseStatus === 'private') return ['Private World', 'private'];
+  if (w.releaseStatus !== 'public') return [w.releaseStatus, 'other'];
+  return w.tags.includes('system_approved') ? undefined : ['Community Labs', 'labs'];
 }
 
 // 現在人数・上限人数とも同じ尺度で絶対値を色分けし、2 人部屋や大人数のインスタンスをひと目で分かるようにする

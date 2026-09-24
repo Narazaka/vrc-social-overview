@@ -57,11 +57,11 @@ export function WorldInfo(p: { id: string }) {
       <Loaded data={data}>
         {d => (
           <>
-            <Img class="world-image" src={img(d().imageUrl, 512)} />
+            <Img class={`world-image ws-${worldStatus(d())?.[1]}`} src={img(d().imageUrl, 512)} />
             <div class="drawer-head">
               <div>
                 <div class="name">
-                  <Show when={worldStatus(d())}>{ws => <span title={ws()[1]}>{ws()[0]} </span>}</Show>
+                  <Show when={worldStatus(d())}>{ws => <span class={`badge wsb-${ws()[1]}`}>{ws()[0]}</span>}</Show>{' '}
                   {d().name}
                 </div>
                 <div class="meta">

@@ -131,17 +131,10 @@ function InstanceHead(p: { loc: string; compact?: boolean }) {
   return (
     <div class="head" classList={{ compact: p.compact }}>
       <span class="clickable" title={LAUNCH_TITLE} onClick={() => void openInGame(p.loc)}>
-        <Img class="thumb" src={img(world()?.thumbnailImageUrl, 128)} />
+        <Img class={`thumb ws-${world() && worldStatus(world()!)?.[1]}`} src={img(world()?.thumbnailImageUrl, 128)} />
       </span>
       <div>
         <div class="title clickable" onClick={openWorld}>
-          <Show when={world() && worldStatus(world()!)}>
-            {ws => (
-              <span class="wstat" title={ws()[1]}>
-                {ws()[0]}
-              </span>
-            )}
-          </Show>
           {title()}
           <Show when={world()?.authorName}>
             {name => (
