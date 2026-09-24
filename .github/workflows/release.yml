@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # タグと package.json の version がずれたまま出さない
+      - run: test "v$(node -p 'require("./package.json").version')" = "$GITHUB_REF_NAME"
+
+      - run: pnpm format:check
+      - run: pnpm check
+      - run: pnpm lint
+      - run: pnpm zip
+      - run: pnpm zip:firefox
+
+      - run: gh release create "$GITHUB_REF_NAME" --generate-notes .output/*.zip
+        env:
+          GH_TOKEN: ${{ github.token }}
