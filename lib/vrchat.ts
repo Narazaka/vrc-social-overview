@@ -175,6 +175,25 @@ export async function openInGame(loc: string) {
   location.href = `vrchat://launch?id=${loc}${short ? `&shortName=${encodeURIComponent(short)}` : ''}&attach=1`;
 }
 
+export type Group = {
+  id: string;
+  name: string;
+  shortCode: string;
+  discriminator: string;
+  description: string;
+  iconUrl: string;
+  bannerUrl: string;
+  rules: string;
+  links: string[];
+  languages: string[];
+  isVerified: boolean;
+  // open / request / invite / closed
+  joinState: string;
+  ownerId: string;
+  memberCount: number;
+};
+export const fetchGroup = (id: string) => limited(() => get<Group>(`/groups/${id}`));
+
 export const fetchWorld = (worldId: string) => limited(() => get<WorldDetail>(`/worlds/${worldId}`));
 
 // フレンド以外のユーザーは currentAvatarImageUrl が返らないので iconUrl で代用する

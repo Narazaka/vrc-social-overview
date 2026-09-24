@@ -132,6 +132,7 @@ export const favClass = (id: string) => {
 // オフラインを含む全フレンドと、加入しているグループ。読み込み時に一度だけ設定する
 let allFriendIds = new Set<string>();
 let myGroupIds = new Set<string>();
+export const isMyGroup = (id: string) => myGroupIds.has(id);
 
 // kind: オーナーとの関係。friend はオンラインなら friend に本人の情報が入る
 export type OwnerView = Owner & { kind: 'friend' | 'stranger' | 'group-member' | 'group'; friend?: Friend };

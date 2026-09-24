@@ -165,12 +165,9 @@ function InstanceHead(p: { loc: string; compact?: boolean }) {
           <Show when={ownerId() ? ownerOf(ownerId()!) : undefined}>
             {o => (
               <span
-                class={`member owner owner-${o().kind} ${o().kind === 'friend' ? favClass(ownerId()!) : ''}`}
-                classList={{ clickable: !o().kind.startsWith('group') }}
+                class={`member owner clickable owner-${o().kind} ${o().kind === 'friend' ? favClass(ownerId()!) : ''}`}
                 title={OWNER_KIND_LABEL[o().kind]}
                 onClick={e => {
-                  // グループはプロフィールが無いので、そのままワールドの詳細を開く
-                  if (o().kind.startsWith('group')) return;
                   e.stopPropagation();
                   openDrawer(ownerId()!);
                 }}

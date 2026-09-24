@@ -1,9 +1,10 @@
-import { onCleanup, onMount, Show, type JSX } from 'solid-js';
+import { Match, onCleanup, onMount, Show, Switch, type JSX } from 'solid-js';
 import { UserProfile } from './profile';
+import { GroupInfo } from './group';
 import { drawerId, setDrawerId } from './state';
 import { WorldInfo } from './world';
 
-// ユーザーやワールドは常時は詳しく出さず、クリックしたときだけ取得して右側のパネルに出す
+// ユーザー・ワールド・グループは常時は詳しく出さず、クリックしたときだけ取得して右側のパネルに出す
 const close = () => setDrawerId(undefined);
 
 export function Drawer() {
@@ -19,9 +20,14 @@ export function Drawer() {
             <button class="drawer-close" title="閉じる" onClick={close}>
               ×
             </button>
-            <Show when={id().startsWith('wrld_')} fallback={<UserProfile id={id()} />}>
-              <WorldInfo id={id()} />
-            </Show>
+            <Switch fallback={<UserProfile id={id()} />}>
+              <Match when={id().startsWith('wrld_')}>
+                <WorldInfo id={id()} />
+              </Match>
+              <Match when={id().startsWith('grp_')}>
+                <GroupInfo id={id()} />
+              </Match>
+            </Switch>
           </aside>
         </div>
       )}

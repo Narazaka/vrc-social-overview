@@ -3,7 +3,7 @@ import { ttlStore } from '@/lib/cache';
 import { fetchNote, fetchProfile, img, inWorld, trustRank, type Profile } from '@/lib/vrchat';
 import { Dot, Img, LaunchButton } from './cards';
 import { Loaded, safeUrl } from './drawer';
-import { friendsById } from './state';
+import { friendsById, openDrawer } from './state';
 
 // 自己紹介などの変わりにくい部分は、開くたびに取り直さないようしばらく使い回す
 const PROFILE_TTL = 30 * 60 * 1000;
@@ -133,7 +133,7 @@ export function UserProfile(p: { id: string }) {
               {g => (
                 <section class="drawer-section">
                   <h3>所属グループ</h3>
-                  <span class="member owner owner-group">
+                  <span class="member owner owner-group clickable" onClick={() => openDrawer(g().id)}>
                     <Img src={img(g().iconUrl, 64)} />
                     {g().name}
                   </span>
