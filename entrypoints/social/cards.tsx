@@ -22,22 +22,31 @@ const OWNER_KIND_LABEL = {
   group: 'オーナー（加入していないグループ）',
 };
 
+// 画面に近づいた画像に知らせる。画像ごとに作ると数百個になるので 1 つを共有する
+const onVisible = new Map<Element, () => void>();
+const lazyObserver = new IntersectionObserver(
+  entries => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      onVisible.get(e.target)?.();
+      unwatch(e.target);
+    }
+  },
+  { rootMargin: '300px' },
+);
+const unwatch = (el: Element) => {
+  lazyObserver.unobserve(el);
+  onVisible.delete(el);
+};
+
 // 画面に近づいてから画像 URL を解決して表示する（画像 API へのアクセスを見えるものだけに絞る）
 export function Img(p: { src: string | undefined; class?: string }) {
   const [visible, setVisible] = createSignal(false);
   const [src, setSrc] = createSignal<string>();
   const observe = (el: HTMLImageElement) => {
-    const io = new IntersectionObserver(
-      entries => {
-        if (entries.some(e => e.isIntersecting)) {
-          setVisible(true);
-          io.disconnect();
-        }
-      },
-      { rootMargin: '300px' },
-    );
-    io.observe(el);
-    onCleanup(() => io.disconnect());
+    onVisible.set(el, () => setVisible(true));
+    lazyObserver.observe(el);
+    onCleanup(() => unwatch(el));
   };
   createEffect(() => {
     const url = p.src;
