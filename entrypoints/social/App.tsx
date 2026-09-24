@@ -202,6 +202,11 @@ export function App() {
             </button>
           </p>
           <p class="detail">{state.error}</p>
+          <div class="notice">
+            <p class="notice-title">⚠ VRC Social Overview は VRChat の非公式ツールです</p>
+            <p>VRChat Inc. とは関係がなく、承認も受けていません。</p>
+            <p>ログイン情報を本拡張に入力することはありません。vrchat.com のログイン状態をそのまま使います。</p>
+          </div>
         </div>
       </Show>
       <Show when={!state.loginRequired}>

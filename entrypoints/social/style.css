@@ -638,3 +638,22 @@ h2[class^='fav-'] {
 .subject {
   cursor: pointer;
 }
+/* 非公式ツールである旨。見落とされないよう枠と色で目立たせる */
+.login-required .notice {
+  margin-top: 18px;
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text);
+  background: color-mix(in srgb, #e0a000 14%, var(--card));
+  border: 1px solid #e0a000;
+  border-radius: 6px;
+}
+.login-required .notice p {
+  margin: 4px 0;
+}
+.login-required .notice .notice-title {
+  font-size: 15px;
+  font-weight: bold;
+  color: #ffcc4d;
+}

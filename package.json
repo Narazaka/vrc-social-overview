@@ -1,7 +1,9 @@
 {
-  "name": "vrc-social-extension",
+  "name": "vrc-social-overview",
   "version": "0.0.1",
   "private": true,
+  "license": "Zlib",
+  "repository": "github:Narazaka/vrc-social-overview",
   "type": "module",
   "scripts": {
     "dev": "wxt",
@@ -26,5 +28,6 @@
     "oxlint": "^1.85.0",
     "typescript": "^7.0.2",
     "wxt": "^0.21.4"
-  }
+  },
+  "packageManager": "pnpm@11.15.1"
 }
