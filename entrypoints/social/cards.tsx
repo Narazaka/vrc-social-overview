@@ -202,7 +202,7 @@ function NonFriends(p: { loc: string }) {
     <Show when={nonFriendsIn(p.loc)}>
       {n => (
         <span class="non-friends" classList={{ stale: instanceOf(p.loc)?.stale }} title={`フレンド以外 ${n()} 人`}>
-          +{n()}
+          他+{n()}
         </span>
       )}
     </Show>
