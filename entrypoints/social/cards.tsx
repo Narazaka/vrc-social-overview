@@ -152,6 +152,24 @@ function InstanceHead(p: { loc: string; compact?: boolean }) {
   );
 }
 
+// インスタンスにいるフレンド以外の人数。人数を取得できていない間は出さない（自分がいれば自分も含む）
+const nonFriendsIn = (loc: string) => {
+  const i = instanceOf(loc);
+  return i ? Math.max(i.userCount - (byLoc().get(loc)?.length ?? 0), 0) : 0;
+};
+
+function NonFriends(p: { loc: string }) {
+  return (
+    <Show when={nonFriendsIn(p.loc)}>
+      {n => (
+        <span class="non-friends" classList={{ stale: instanceOf(p.loc)?.stale }} title={`フレンド以外 ${n()} 人`}>
+          +{n()}
+        </span>
+      )}
+    </Show>
+  );
+}
+
 export function InstanceCard(p: { loc: string }) {
   const members = () => {
     const ownerId = ownerIdOf(p.loc);
@@ -162,6 +180,7 @@ export function InstanceCard(p: { loc: string }) {
       <InstanceHead loc={p.loc} />
       <div class="members">
         <For each={members()}>{f => <Member f={f} />}</For>
+        <NonFriends loc={p.loc} />
       </div>
     </section>
   );
@@ -191,9 +210,10 @@ export function FriendCard(p: { f: Friend }) {
       <Show when={inWorld(p.f)}>
         <div class={`where ${instanceType(p.f.location)[1]}`}>
           <InstanceHead loc={p.f.location} compact />
-          <Show when={others().length}>
+          <Show when={others().length || nonFriendsIn(p.f.location)}>
             <div class="members small">
               <For each={others()}>{f => <Member f={f} />}</For>
+              <NonFriends loc={p.f.location} />
             </div>
           </Show>
         </div>

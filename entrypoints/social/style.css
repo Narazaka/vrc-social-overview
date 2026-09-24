@@ -591,3 +591,13 @@ h2[class^='fav-'] {
 .log-row .fav {
   color: var(--fav);
 }
+/* フレンドの並びの後に出す、フレンド以外の人数 */
+.non-friends {
+  align-self: center;
+  padding: 0 4px;
+  color: var(--sub);
+  font-weight: bold;
+}
+.non-friends.stale {
+  opacity: 0.45;
+}
