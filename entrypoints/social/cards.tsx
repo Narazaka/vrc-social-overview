@@ -130,7 +130,7 @@ function InstanceHead(p: { loc: string; compact?: boolean }) {
   };
   return (
     <div class="head" classList={{ compact: p.compact }}>
-      <span class="clickable" onClick={openWorld}>
+      <span class="clickable" title={LAUNCH_TITLE} onClick={() => void openInGame(p.loc)}>
         <Img class="thumb" src={img(world()?.thumbnailImageUrl, 128)} />
       </span>
       <div>
@@ -228,7 +228,12 @@ export function FriendCard(p: { f: Friend }) {
   return (
     <section class="card" classList={{ outside: outsideGame(p.f) }}>
       <div class="subject">
-        <span class="clickable" onClick={() => openDrawer(p.f.id)}>
+        {/* ワールドにいればそのインスタンスをゲームで開き、いなければプロフィールを開く */}
+        <span
+          class="clickable"
+          title={inWorld(p.f) ? LAUNCH_TITLE : undefined}
+          onClick={() => (inWorld(p.f) ? void openInGame(p.f.location) : openDrawer(p.f.id))}
+        >
           <Img src={img(p.f.currentAvatarImageUrl, 128)} />
         </span>
         <div>
