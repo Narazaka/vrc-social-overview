@@ -160,6 +160,21 @@ export const fetchAuthToken = () => get<{ token: string }>('/auth').then(a => a.
 export const fetchAvatarImage = (id: string) =>
   limited(() => get<{ currentAvatarImageUrl: string }>(`/users/${id}`)).then(u => u.currentAvatarImageUrl);
 
+// 招待制などのインスタンスに入るには、インスタンス ID に加えてこの値が要る
+const fetchShortName = (loc: string) =>
+  limited(() => get<{ shortName?: string; secureName?: string }>(`/instances/${loc}/shortName`)).then(
+    s => s.secureName ?? s.shortName,
+  );
+
+// VRChat が起動していればゲーム内でインスタンスの詳細を開き（招待は送らない）、起動していなければ起動してそのインスタンスに入る。
+// Public 系は shortName が無くても入れるので取らない
+export async function openInGame(loc: string) {
+  const [, type] = instanceType(loc);
+  const short =
+    type === 'public' || type === 'group-public' ? undefined : await fetchShortName(loc).catch(() => undefined);
+  location.href = `vrchat://launch?id=${loc}${short ? `&shortName=${encodeURIComponent(short)}` : ''}&attach=1`;
+}
+
 export const fetchWorld = (worldId: string) => limited(() => get<WorldDetail>(`/worlds/${worldId}`));
 
 // フレンド以外のユーザーは currentAvatarImageUrl が返らないので iconUrl で代用する

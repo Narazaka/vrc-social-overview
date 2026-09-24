@@ -608,3 +608,18 @@ h2[class^='fav-'] {
   font-weight: normal;
   color: var(--sub);
 }
+/* 詳細パネルの「ゲームで開く」（一覧ではインスタンス種別のクリックで開く） */
+.launch {
+  font: inherit;
+  font-size: 11px;
+  padding: 0 8px;
+  line-height: 18px;
+  color: var(--text);
+  background: #2a3a2a;
+  border: 1px solid #3f6b3f;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.launch:hover {
+  background: #355235;
+}

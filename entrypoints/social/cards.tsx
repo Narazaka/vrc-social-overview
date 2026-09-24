@@ -12,6 +12,7 @@ import {
   type Friend,
   outsideGame,
   placeIcon,
+  openInGame,
 } from '@/lib/vrchat';
 import { byLoc, favClass, instanceOf, openDrawer, ownerOf, state, worldOf } from './state';
 
@@ -40,6 +41,15 @@ const unwatch = (el: Element) => {
 };
 
 // 画面に近づいてから画像 URL を解決して表示する（画像 API へのアクセスを見えるものだけに絞る）
+const LAUNCH_TITLE = 'クリックでゲームで開く（招待は送りません）';
+
+// インスタンス種別の表示が無い詳細パネル用
+export const LaunchButton = (p: { loc: string }) => (
+  <button class="launch" title={LAUNCH_TITLE} onClick={() => void openInGame(p.loc)}>
+    ▶ ゲームで開く
+  </button>
+);
+
 export function Img(p: { src: string | undefined; class?: string }) {
   const [visible, setVisible] = createSignal(false);
   const [src, setSrc] = createSignal<string>();
@@ -150,7 +160,9 @@ function InstanceHead(p: { loc: string; compact?: boolean }) {
           </Show>
         </div>
         <div class="meta">
-          <span class={`badge ${type()[1]}`}>{type()[0]}</span>
+          <span class={`badge clickable ${type()[1]}`} title={LAUNCH_TITLE} onClick={() => void openInGame(p.loc)}>
+            {type()[0]}
+          </span>
           <Show when={inst()}>{i => <Capacity n={i().userCount} cap={world()?.capacity} stale={i().stale} />}</Show>
           <Show when={ownerId() ? ownerOf(ownerId()!) : undefined}>
             {o => (

@@ -1,7 +1,7 @@
 import { createResource, For, Show } from 'solid-js';
 import { ttlStore } from '@/lib/cache';
-import { fetchNote, fetchProfile, img, trustRank, type Profile } from '@/lib/vrchat';
-import { Dot, Img } from './cards';
+import { fetchNote, fetchProfile, img, inWorld, trustRank, type Profile } from '@/lib/vrchat';
+import { Dot, Img, LaunchButton } from './cards';
 import { Loaded, safeUrl } from './drawer';
 import { friendsById } from './state';
 
@@ -84,6 +84,9 @@ export function UserProfile(p: { id: string }) {
                   <For each={d().profile.languages}>{l => <span class="lang">{l.toUpperCase()}</span>}</For>
                 </div>
                 <Show when={friend()?.statusDescription}>{desc => <div class="meta">{desc()}</div>}</Show>
+                <Show when={friend() && inWorld(friend()!) && friend()!.location}>
+                  {loc => <LaunchButton loc={loc()} />}
+                </Show>
               </div>
             </div>
             <Show when={d().note}>
