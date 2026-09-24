@@ -12,6 +12,14 @@ VRChat のフレンドの居場所とインスタンスを見やすく一覧す�
 - ゲーム内でインスタンスを開く（VRChat 起動中はメニューに詳細が出る。招待は送らない）
 - リアルタイム更新（VRChat の Pipeline）とイベントログ
 
+## スクリーンショット
+
+フレンド名などはダミーです。
+
+![フレンド一覧](assets/store/friends.png)
+![インスタンス一覧](assets/store/instances.png)
+![ワールドの詳細](assets/store/world.png)
+
 ## 使い方
 
 1. ブラウザで [vrchat.com](https://vrchat.com/home) にログインしておく

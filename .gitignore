@@ -2,4 +2,3 @@ node_modules/
 .output/
 .wxt/
 .env.submit
-assets/store/
