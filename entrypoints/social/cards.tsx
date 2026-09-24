@@ -95,14 +95,14 @@ export function Member(p: { f: Friend }) {
   );
 }
 
-// cap はワールド情報がまだ無いと不明。stale は前回の人数を取り直し中
+// cap はワールド情報がまだ無いと不明。stale は人数が未確定（前回の値やフレンドの増減からの推定で、取り直し待ち）
 function Capacity(p: { n: number; cap: number | undefined; stale?: boolean }) {
   const ratio = () => (p.cap ? Math.min(p.n / p.cap, 1) : 0);
   return (
     <span
       class="cap"
       classList={{ stale: p.stale }}
-      title={`${p.n} / ${p.cap ?? '?'} 人${p.stale ? '（前回の人数・更新中）' : ''}`}
+      title={`${p.n} / ${p.cap ?? '?'} 人${p.stale ? '（未確定・更新待ち）' : ''}`}
     >
       <span>
         <b class={sizeClass(p.n)}>{p.n}</b>/<b class={p.cap ? sizeClass(p.cap) : ''}>{p.cap ?? '?'}</b>

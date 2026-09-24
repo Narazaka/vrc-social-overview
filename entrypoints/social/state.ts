@@ -51,7 +51,7 @@ const slimWorld = (w: World): World => ({
 export type LogEntry = { at: number; type: string; userId: string; name: string; loc?: string; text?: string };
 const MAX_LOG = 500;
 
-// stale: 期限切れの保存値を取り直し中
+// stale: 人数が未確定（前回の値や推定値を出していて、取り直し中または取り直し待ち）
 export type InstanceState = { userCount: number; stale?: boolean };
 
 export const [state, setState] = createStore({
@@ -146,8 +146,11 @@ export function ownerOf(id: string): OwnerView | undefined {
   return { ...o, kind: allFriendIds.has(id) ? 'friend' : 'stranger' };
 }
 
+// 同じインスタンスの人数はこの間隔より頻繁には取り直さない（フレンドの出入りが続いても 1 回にまとめる）
+const REFRESH_INTERVAL = 30 * 1000;
+const refreshScheduled = new Set<string>();
+
 // 人数を必要なら取り直す。取り直すと応答に含まれるワールド情報も新しくなるので true を返す
-// ponytail: 顔ぶれが変わるたびに取り直す。人の出入りが激しくリクエストが増えるようなら間隔を空ける
 function syncInstance(loc: string): boolean {
   const members = byLoc().get(loc);
   if (!members) return false;
@@ -155,6 +158,20 @@ function syncInstance(loc: string): boolean {
   const cached = instanceCache.fresh(loc, INSTANCE_TTL);
   if (cached?.members === key) {
     setState('instances', loc, { userCount: cached.userCount, stale: false });
+    return false;
+  }
+  const recent = instanceCache.fresh(loc, REFRESH_INTERVAL);
+  if (recent) {
+    // 取り直すまでは、前回の人数にフレンドの増減だけを反映した未確定の値を出す
+    const estimate = recent.userCount + members.length - recent.members.split(',').length;
+    setState('instances', loc, { userCount: Math.max(estimate, members.length), stale: true });
+    if (!refreshScheduled.has(loc)) {
+      refreshScheduled.add(loc);
+      setTimeout(() => {
+        refreshScheduled.delete(loc);
+        syncInstance(loc);
+      }, REFRESH_INTERVAL);
+    }
     return false;
   }
   refreshInstance(loc, key);
