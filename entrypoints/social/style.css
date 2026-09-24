@@ -601,3 +601,10 @@ h2[class^='fav-'] {
 .non-friends.stale {
   opacity: 0.45;
 }
+/* ワールド名の後ろに小さく出す作者名 */
+.title .author {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: normal;
+  color: var(--sub);
+}

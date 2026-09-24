@@ -39,6 +39,8 @@ const ownerCache = ttlStore<Owner>('owners', 2000);
 // 表示に使う項目だけ残して保存量を抑える（タグは正式公開かどうかの判定にだけ使う）
 const slimWorld = (w: World): World => ({
   name: w.name,
+  authorId: w.authorId,
+  authorName: w.authorName,
   thumbnailImageUrl: w.thumbnailImageUrl,
   releaseStatus: w.releaseStatus,
   capacity: w.capacity,

@@ -11,6 +11,9 @@ export type Friend = {
 };
 export type World = {
   name: string;
+  // 以前に保存したワールド情報には無いことがある
+  authorId?: string;
+  authorName?: string;
   thumbnailImageUrl: string;
   releaseStatus: string;
   capacity: number;

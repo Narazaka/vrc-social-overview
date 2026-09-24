@@ -124,6 +124,21 @@ function InstanceHead(p: { loc: string; compact?: boolean }) {
             )}
           </Show>
           {title()}
+          <Show when={world()?.authorName}>
+            {name => (
+              <span
+                class="author clickable"
+                title="ワールドの作者"
+                onClick={e => {
+                  // ワールド名のクリック（ワールドの詳細を開く）に伝わらないようにする
+                  e.stopPropagation();
+                  openDrawer(world()!.authorId!);
+                }}
+              >
+                {name()}
+              </span>
+            )}
+          </Show>
         </div>
         <div class="meta">
           <span class={`badge ${type()[1]}`}>{type()[0]}</span>
