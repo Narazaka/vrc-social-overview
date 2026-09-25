@@ -315,11 +315,6 @@ export function App() {
     if (theme() === 'system') delete root.dataset.theme;
     else root.dataset.theme = theme();
   });
-  // 並びの移動は CSS で動かすので、オン・オフを CSS に伝える
-  createEffect(() => {
-    if (motion()) document.documentElement.dataset.motion = '';
-    else delete document.documentElement.dataset.motion;
-  });
   const loading = () => state.progress.done < state.progress.total;
   const header = () => {
     if (!state.me) return '読み込み中…';
