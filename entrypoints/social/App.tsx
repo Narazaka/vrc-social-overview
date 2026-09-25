@@ -3,7 +3,7 @@ import { img, inPrivate, inWorld, outsideGame, ownerIdOf, type Friend } from '@/
 import { FriendCard, Img, InstanceCard, Member } from './cards';
 import { LogTab } from './log';
 import { Drawer } from './drawer';
-import { animateReorder, setSettled } from './motion';
+import { Reorder, setSettled } from './motion';
 import { motion, persisted, setMotion } from './settings';
 import { byLoc, instanceOf, load, loadGroupInstances, openDrawer, ownerOf, setState, state, worldOf } from './state';
 
@@ -152,8 +152,10 @@ function FriendSection(p: { title: string; group?: string; list: Friend[] }) {
   const visible = () => (showOutside() ? p.list : p.list.filter(f => !outsideGame(f)));
   // 空になっても入れ物は残す（最初の 1 枚が入ったときも出現として見せるため。空の間は CSS で詰める）
   const grid = (list: () => Friend[]) => (
-    <div class="grid" ref={animateReorder}>
-      <For each={sortBy(list(), friendSort.specs())}>{f => <FriendCard f={f} />}</For>
+    <div class="grid">
+      <Reorder>
+        <For each={sortBy(list(), friendSort.specs())}>{f => <FriendCard f={f} />}</For>
+      </Reorder>
     </div>
   );
   return (
@@ -203,18 +205,24 @@ function InstancesTab() {
       <div class="modes">
         <instanceSort.Control />
       </div>
-      <div class="grid" ref={animateReorder}>
-        <For each={locs()}>{loc => <InstanceCard loc={loc} />}</For>
+      <div class="grid">
+        <Reorder>
+          <For each={locs()}>{loc => <InstanceCard loc={loc} />}</For>
+        </Reorder>
       </div>
       <div class="others">
         <h2>private ({privates().length})</h2>
-        <div class="members" ref={animateReorder}>
-          <For each={privates()}>{f => <Member f={f} />}</For>
+        <div class="members">
+          <Reorder>
+            <For each={privates()}>{f => <Member f={f} />}</For>
+          </Reorder>
         </div>
         <Show when={showOutside()}>
           <h2>Web・モバイル ({outside().length})</h2>
-          <div class="members outside" ref={animateReorder}>
-            <For each={outside()}>{f => <Member f={f} />}</For>
+          <div class="members outside">
+            <Reorder>
+              <For each={outside()}>{f => <Member f={f} />}</For>
+            </Reorder>
           </div>
         </Show>
       </div>
@@ -283,8 +291,10 @@ function GroupList() {
                 <Img src={img(ownerOf(groupId)?.image, 64)} />
                 {ownerOf(groupId)?.name ?? groupId} ({locsOf(groupId).length})
               </h2>
-              <div class="grid" ref={animateReorder}>
-                <For each={locsOf(groupId)}>{loc => <InstanceCard loc={loc} />}</For>
+              <div class="grid">
+                <Reorder>
+                  <For each={locsOf(groupId)}>{loc => <InstanceCard loc={loc} />}</For>
+                </Reorder>
               </div>
             </section>
           )}
@@ -304,6 +314,11 @@ export function App() {
     const root = document.documentElement;
     if (theme() === 'system') delete root.dataset.theme;
     else root.dataset.theme = theme();
+  });
+  // 並びの移動は CSS で動かすので、オン・オフを CSS に伝える
+  createEffect(() => {
+    if (motion()) document.documentElement.dataset.motion = '';
+    else delete document.documentElement.dataset.motion;
   });
   const loading = () => state.progress.done < state.progress.total;
   const header = () => {

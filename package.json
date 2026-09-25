@@ -19,7 +19,8 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
-    "solid-js": "^1.9.15"
+    "solid-js": "^1.9.15",
+    "solid-transition-group": "^0.3.0"
   },
   "devDependencies": {
     "@wxt-dev/module-solid": "^1.1.4",

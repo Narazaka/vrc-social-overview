@@ -755,3 +755,9 @@ h2[class^='fav-'] {
   height: 80px;
   border-radius: 50%;
 }
+/* 並びが変わったときの移動（motion.tsx の Reorder）。変化のアニメーションがオンで、OS で視差効果を減らしていないときだけ */
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-motion] .reorder-move {
+    transition: transform 0.3s ease-out;
+  }
+}

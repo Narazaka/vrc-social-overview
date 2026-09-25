@@ -14,7 +14,7 @@ import {
   placeIcon,
   openInGame,
 } from '@/lib/vrchat';
-import { animateReorder } from './motion';
+import { Reorder } from './motion';
 import { animationsOn } from './settings';
 import { byLoc, favClass, instanceOf, openDrawer, ownerOf, requestAvatar, setShown, state, worldOf } from './state';
 
@@ -244,9 +244,11 @@ export function InstanceCard(p: { loc: string }) {
       <InstanceHead loc={p.loc} />
       {/* フレンドがいない（グループタブにだけ出る）インスタンスは人数だけで足りるので、他+N も出さない */}
       <Show when={members().length}>
-        <div class="members" ref={animateReorder}>
-          <For each={members()}>{f => <Member f={f} />}</For>
-          <NonFriends loc={p.loc} />
+        <div class="members">
+          <Reorder>
+            <For each={members()}>{f => <Member f={f} />}</For>
+            <NonFriends loc={p.loc} />
+          </Reorder>
         </div>
       </Show>
     </section>
@@ -287,9 +289,11 @@ export function FriendCard(p: { f: Friend }) {
         <div class={`where ${instanceType(p.f.location)[1]}`}>
           <InstanceHead loc={p.f.location} compact />
           <Show when={others().length || nonFriendsIn(p.f.location)}>
-            <div class="members small" ref={animateReorder}>
-              <For each={others()}>{f => <Member f={f} />}</For>
-              <NonFriends loc={p.f.location} />
+            <div class="members small">
+              <Reorder>
+                <For each={others()}>{f => <Member f={f} />}</For>
+                <NonFriends loc={p.f.location} />
+              </Reorder>
             </div>
           </Show>
         </div>
