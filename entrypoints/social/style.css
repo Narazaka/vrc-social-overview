@@ -89,6 +89,10 @@ nav button[aria-pressed='true'] {
   background: var(--card);
   cursor: pointer;
 }
+.seg button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
 .seg button + button {
   border-left: none;
 }

@@ -7,15 +7,22 @@ import { animationsOn, motion, persisted, setMotion } from './settings';
 import { byLoc, instanceOf, load, loadGroupInstances, openDrawer, ownerOf, setState, state, worldOf } from './state';
 
 type SortKey<T> = (x: T) => number | string;
+// 並びの条件（キーと逆順かどうか）を優先順に並べたもの
+type SortSpec<T> = [SortKey<T>, boolean][];
 
-// 数値は大きい順、文字列は名前順（数字は数値として比べる）。キーが同じものは元の順（API が返した順）を保つ
+// 数値は大きい順、文字列は名前順（数字は数値として比べる）
 const collator = new Intl.Collator('ja', { numeric: true });
 const compare = (a: number | string, b: number | string) =>
   typeof a === 'string' && typeof b === 'string' ? collator.compare(a, b) : Number(b) - Number(a);
-const sortBy = <T,>(list: T[], key: SortKey<T>, reverse: boolean) => {
-  const sorted = list.toSorted((a, b) => compare(key(a), key(b)));
-  return reverse ? sorted.toReversed() : sorted;
-};
+// 前の条件で同じだったものだけ次の条件で比べる。どの条件でも同じものは元の順（API が返した順）を保つ
+const sortBy = <T,>(list: T[], specs: SortSpec<T>) =>
+  list.toSorted((a, b) => {
+    for (const [key, reverse] of specs) {
+      const c = compare(key(a), key(b));
+      if (c) return reverse ? -c : c;
+    }
+    return 0;
+  });
 
 const usersIn = (loc: string) => instanceOf(loc)?.userCount ?? -1;
 // ワールド情報がまだ無いものは名前順の最後に回す
@@ -60,12 +67,66 @@ const showOutside = () => outsideMode() === 'separate';
 const THEMES = { dark: 'ダーク', light: 'ライト', system: '自動' };
 const [theme, setTheme] = persisted('theme', 'dark', keysOf(THEMES));
 const [favMode, setFavMode] = persisted<'grouped' | 'mixed'>('favMode', 'grouped', ['grouped', 'mixed']);
-const [friendSort, setFriendSort] = persisted('friendSort', 'default', keysOf(FRIEND_SORTS));
-const [friendReverse, setFriendReverse] = persisted<boolean>('friendReverse', false);
-const [instanceSort, setInstanceSort] = persisted('instanceSort', 'friends', keysOf(INSTANCE_SORTS));
-const [instanceReverse, setInstanceReverse] = persisted<boolean>('instanceReverse', false);
-const [groupSort, setGroupSort] = persisted('groupSort', 'users', keysOf(GROUP_SORTS));
-const [groupReverse, setGroupReverse] = persisted<boolean>('groupReverse', false);
+
+// 選択肢を並べて 1 クリックで切り替えられるようにする。disabled の選択肢は選べない
+function SortButtons<K extends string>(p: {
+  options: Record<K, [string, ...unknown[]]>;
+  value: K;
+  set: (k: K) => void;
+  disabled?: string;
+}) {
+  return (
+    <span class="seg">
+      <For each={keysOf(p.options)}>
+        {k => (
+          <button aria-pressed={p.value === k} disabled={p.disabled === k} onClick={() => p.set(k)}>
+            {p.options[k][0]}
+          </button>
+        )}
+      </For>
+    </span>
+  );
+}
+
+const ReverseBox = (p: { value: boolean; set: (v: boolean) => void }) => (
+  <label>
+    <input type="checkbox" checked={p.value} onChange={e => p.set(e.currentTarget.checked)} /> 逆順
+  </label>
+);
+
+// 並びの設定。第 1 条件で同じだったものを第 2 条件で並べ、それぞれ逆順にできる（開き直しても保つ）
+function sortSetting<T, K extends string>(name: string, sorts: Record<K, [string, SortKey<T>]>, initial: K) {
+  const keys = keysOf(sorts);
+  const [key, setKey] = persisted<K>(`${name}Sort`, initial, keys);
+  const [reverse, setReverse] = persisted<boolean>(`${name}Reverse`, false);
+  const [key2, setKey2] = persisted<K | 'none'>(`${name}Sort2`, 'none', ['none', ...keys]);
+  const [reverse2, setReverse2] = persisted<boolean>(`${name}Reverse2`, false);
+  const second = () => {
+    const k = key2();
+    return k === 'none' || k === key() ? undefined : k;
+  };
+  const specs = (): SortSpec<T> => {
+    const k = second();
+    return [[sorts[key()][1], reverse()], ...(k ? [[sorts[k][1], reverse2()] as [SortKey<T>, boolean]] : [])];
+  };
+  const secondOptions = { none: ['なし'], ...sorts } as Record<K | 'none', [string, ...unknown[]]>;
+  const Control = () => (
+    <span class="seg-group">
+      並び:
+      <SortButtons options={sorts} value={key()} set={setKey} />
+      <ReverseBox value={reverse()} set={setReverse} />
+      次に:
+      <SortButtons options={secondOptions} value={second() ?? 'none'} set={setKey2} disabled={key()} />
+      <Show when={second()}>
+        <ReverseBox value={reverse2()} set={setReverse2} />
+      </Show>
+    </span>
+  );
+  return { specs, Control };
+}
+const friendSort = sortSetting('friend', FRIEND_SORTS, 'default');
+const instanceSort = sortSetting('instance', INSTANCE_SORTS, 'friends');
+const groupSort = sortSetting('group', GROUP_SORTS, 'users');
 
 // 並びが変わったとき（増減・並べ替え・移動）に、各要素を前の位置から今の位置へ滑らかに動かし（FLIP）、
 // 新しく現れた要素はふわっと出し、消えた要素はその場でふわっと消す。変化がどこで起きたか目で追えるようにするため。
@@ -137,40 +198,13 @@ function animateReorder(container: HTMLElement) {
   });
 }
 
-function SortControl<K extends string>(p: {
-  sorts: Record<K, [string, unknown]>;
-  key: K;
-  setKey: (k: K) => void;
-  reverse: boolean;
-  setReverse: (r: boolean) => void;
-}) {
-  // 選択肢を並べて 1 クリックで切り替えられるようにする
-  return (
-    <span class="seg-group">
-      並び:
-      <span class="seg">
-        <For each={Object.entries(p.sorts) as [K, [string, unknown]][]}>
-          {([k, [label]]) => (
-            <button aria-pressed={p.key === k} onClick={() => p.setKey(k)}>
-              {label}
-            </button>
-          )}
-        </For>
-      </span>
-      <label>
-        <input type="checkbox" checked={p.reverse} onChange={e => p.setReverse(e.currentTarget.checked)} /> 逆順
-      </label>
-    </span>
-  );
-}
-
 // ワールドにいる人・ゲーム内で private の人・ゲーム外（Web・モバイル）の人は別の行から並べる
-function FriendSection(p: { title: string; group?: string; list: Friend[]; sort: SortKey<Friend>; reverse: boolean }) {
+function FriendSection(p: { title: string; group?: string; list: Friend[] }) {
   const visible = () => (showOutside() ? p.list : p.list.filter(f => !outsideGame(f)));
   const grid = (list: () => Friend[]) => (
     <Show when={list().length}>
       <div class="grid" ref={animateReorder}>
-        <For each={sortBy(list(), p.sort, p.reverse)}>{f => <FriendCard f={f} />}</For>
+        <For each={sortBy(list(), friendSort.specs())}>{f => <FriendCard f={f} />}</For>
       </div>
     </Show>
   );
@@ -188,8 +222,6 @@ function FriendSection(p: { title: string; group?: string; list: Friend[]; sort:
 
 function FriendsTab() {
   const favs = () => state.friends.filter(f => f.id in state.favTags);
-  const sort = () => FRIEND_SORTS[friendSort()][1];
-  const reverse = friendReverse;
   return (
     <>
       <div class="modes">
@@ -202,54 +234,32 @@ function FriendsTab() {
           <input type="radio" name="favmode" checked={favMode() === 'mixed'} onChange={() => setFavMode('mixed')} />{' '}
           まとめて
         </label>
-        <SortControl
-          sorts={FRIEND_SORTS}
-          key={friendSort()}
-          setKey={setFriendSort}
-          reverse={friendReverse()}
-          setReverse={setFriendReverse}
-        />
+        <friendSort.Control />
       </div>
-      <Show
-        when={favMode() === 'grouped'}
-        fallback={<FriendSection title="お気に入り" list={favs()} sort={sort()} reverse={reverse()} />}
-      >
+      <Show when={favMode() === 'grouped'} fallback={<FriendSection title="お気に入り" list={favs()} />}>
         <For each={state.favGroups}>
           {g => (
             <FriendSection
               title={g.displayName}
               group={g.name}
               list={favs().filter(f => state.favTags[f.id]?.includes(g.name))}
-              sort={sort()}
-              reverse={reverse()}
             />
           )}
         </For>
       </Show>
-      <FriendSection
-        title="その他のフレンド"
-        list={state.friends.filter(f => !(f.id in state.favTags))}
-        sort={sort()}
-        reverse={reverse()}
-      />
+      <FriendSection title="その他のフレンド" list={state.friends.filter(f => !(f.id in state.favTags))} />
     </>
   );
 }
 
 function InstancesTab() {
-  const locs = () => sortBy([...byLoc().keys()], INSTANCE_SORTS[instanceSort()][1], instanceReverse());
+  const locs = () => sortBy([...byLoc().keys()], instanceSort.specs());
   const privates = () => state.friends.filter(inPrivate);
   const outside = () => state.friends.filter(outsideGame);
   return (
     <>
       <div class="modes">
-        <SortControl
-          sorts={INSTANCE_SORTS}
-          key={instanceSort()}
-          setKey={setInstanceSort}
-          reverse={instanceReverse()}
-          setReverse={setInstanceReverse}
-        />
+        <instanceSort.Control />
       </div>
       <div class="grid" ref={animateReorder}>
         <For each={locs()}>{loc => <InstanceCard loc={loc} />}</For>
@@ -294,13 +304,7 @@ function GroupsTab() {
         >
           {state.groupInstancesLoading ? '更新中…' : '更新'}
         </button>
-        <SortControl
-          sorts={GROUP_SORTS}
-          key={groupSort()}
-          setKey={setGroupSort}
-          reverse={groupReverse()}
-          setReverse={setGroupReverse}
-        />
+        <groupSort.Control />
         <Show when={state.groupInstancesAt}>
           {at => <span>最終更新 {new Date(at()).toLocaleTimeString()}（開いている間は 5 分ごとに自動更新）</span>}
         </Show>
@@ -316,8 +320,7 @@ function GroupList() {
   const locsOf = (groupId: string) =>
     sortBy(
       (state.groupInstances ?? []).filter(loc => ownerIdOf(loc) === groupId),
-      GROUP_SORTS[groupSort()][1],
-      groupReverse(),
+      groupSort.specs(),
     );
   const groups = createMemo(() =>
     [...new Set((state.groupInstances ?? []).map(loc => ownerIdOf(loc)!))].toSorted(
