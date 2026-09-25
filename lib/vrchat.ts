@@ -156,9 +156,9 @@ export type WorldDetail = World & {
 };
 // Pipeline（WebSocket）の接続に使う認証トークン。ログイン Cookie の値と同じもの
 export const fetchAuthToken = () => get<{ token: string }>('/auth').then(a => a.token);
-// Pipeline のイベントにはアバター画像が入らないので、新しくオンラインになったフレンドの分だけ取る
-export const fetchAvatarImage = (id: string) =>
-  limited(() => get<{ currentAvatarImageUrl: string }>(`/users/${id}`)).then(u => u.currentAvatarImageUrl);
+// ユーザーの画像。/users/{id} には currentAvatarImageUrl が無く、iconUrl に同じ画像が入っている
+export const fetchUserImage = (id: string) =>
+  limited(() => get<{ iconUrl?: string }>(`/users/${id}`)).then(u => u.iconUrl ?? '');
 
 // 招待制などのインスタンスに入るには、インスタンス ID に加えてこの値が要る
 const fetchShortName = (loc: string) =>
@@ -214,7 +214,7 @@ export type GroupInstance = { location: string; worldId: string; userCount: numb
 export const fetchGroupInstances = (userId: string) =>
   limited(() => get<{ instances: GroupInstance[] }>(`/users/${userId}/instances/groups`)).then(r => r.instances);
 
-// フレンド以外のユーザーは currentAvatarImageUrl が返らないので iconUrl で代用する
+// ユーザーの画像は /users/{id} では iconUrl に入っている（currentAvatarImageUrl は返らない）
 export function fetchOwner(id: string): Promise<Owner> {
   if (id.startsWith('grp_'))
     return limited(() => get<{ name: string; iconUrl: string }>(`/groups/${id}`)).then(g => ({

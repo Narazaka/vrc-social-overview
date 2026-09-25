@@ -3,11 +3,11 @@ import { createStore, reconcile } from 'solid-js/store';
 import { connectPipeline } from '@/lib/pipeline';
 import {
   setAuthLostHandler,
-  fetchAvatarImage,
   fetchFavoriteGroups,
   fetchFavorites,
   fetchFriends,
   fetchGroupInstances,
+  fetchUserImage,
   fetchInstance,
   fetchWorld,
   fetchMe,
@@ -263,17 +263,23 @@ async function syncFriends(friends?: Friend[]) {
   for (const loc of byLoc().keys()) syncLoc(loc);
 }
 
-// Pipeline の user には表示に使う項目のうちこれらだけが入っている（アバター画像は入らない）
-type PipelineUser = { displayName?: string; status?: string; statusDescription?: string };
+// Pipeline の user に入っている、表示に使う項目。currentAvatarImageUrl は無いが、iconUrl に同じ画像が入っている
+type PipelineUser = { displayName?: string; status?: string; statusDescription?: string; iconUrl?: string };
 const pickUser = (u: PipelineUser | undefined): Partial<Friend> =>
   Object.fromEntries(
     (['displayName', 'status', 'statusDescription'] as const).filter(k => u?.[k] !== undefined).map(k => [k, u![k]]),
   );
 
-function patchFriend(id: string, patch: Partial<Friend>) {
+// image: イベントに付いてきた画像。アバター画像が分からない人にだけ使う（分かっている画像を差し替えない）
+function patchFriend(id: string, patch: Partial<Friend>, image?: string) {
   const i = state.friends.findIndex(f => f.id === id);
   const oldLoc = state.friends[i]?.location;
-  if (i >= 0) setState('friends', i, patch);
+  if (i >= 0)
+    setState(
+      'friends',
+      i,
+      image && !state.friends[i]!.currentAvatarImageUrl ? { ...patch, currentAvatarImageUrl: image } : patch,
+    );
   else {
     const f: Friend = {
       id,
@@ -282,7 +288,7 @@ function patchFriend(id: string, patch: Partial<Friend>) {
       statusDescription: '',
       location: 'offline',
       platform: '',
-      currentAvatarImageUrl: knownAvatars.get(id) ?? '',
+      currentAvatarImageUrl: knownAvatars.get(id) ?? image ?? '',
       ...patch,
     };
     setState('friends', fs => [...fs, f]);
@@ -297,12 +303,13 @@ function patchFriend(id: string, patch: Partial<Friend>) {
 const knownAvatars = new Map<string, string>();
 const avatarRequested = new Set<string>();
 
-// Pipeline のイベントにはアバター画像が無いので、アバター画像が分からないフレンドが画面に見えたときに取る
+// イベントに画像が無かったフレンドは、画面に見えたときに 1 人 1 回だけ取る
 export function requestAvatar(id: string) {
   if (avatarRequested.has(id)) return;
   avatarRequested.add(id);
-  fetchAvatarImage(id).then(
+  fetchUserImage(id).then(
     url => {
+      if (!url) return;
       knownAvatars.set(id, url);
       setState('friends', f => f.id === id, 'currentAvatarImageUrl', url);
     },
@@ -327,12 +334,12 @@ function onEvent(type: string, c: any) {
     case 'friend-location':
       // 移動先のワールド情報が付いてくるので、取りに行かずに済む
       if (c.worldId && c.world?.name) setWorld(c.worldId, c.world);
-      return patchFriend(id, { ...pickUser(c.user), location: c.location, platform: c.platform });
+      return patchFriend(id, { ...pickUser(c.user), location: c.location, platform: c.platform }, c.user?.iconUrl);
     case 'friend-active':
       // Web サイトやモバイルアプリからのオンライン
-      return patchFriend(id, { ...pickUser(c.user), location: 'offline', platform: c.platform });
+      return patchFriend(id, { ...pickUser(c.user), location: 'offline', platform: c.platform }, c.user?.iconUrl);
     case 'friend-update':
-      if (friendsById().has(id)) patchFriend(id, pickUser(c.user));
+      if (friendsById().has(id)) patchFriend(id, pickUser(c.user), c.user?.iconUrl);
       return;
     case 'friend-offline':
       return removeFriend(id);
