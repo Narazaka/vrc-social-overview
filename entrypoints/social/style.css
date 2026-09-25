@@ -1,14 +1,27 @@
-/* 明度で情報の階層を作る: 背景 < カード < チップ、文字は 見出し(--title) > 本文(--text) > 補足(--sub) */
+/* 明度で情報の階層を作る: 背景 < カード < チップ、文字は 見出し(--title) > 本文(--text) > 補足(--sub)。
+   色は light-dark(ライト, ダーク) で両方持ち、color-scheme で切り替える（data-theme が無ければ OS の設定に従う） */
 :root {
+  color-scheme: light dark;
+  --bg: light-dark(#f3f4f7, #0f1115);
+  --card: light-dark(#ffffff, #1a1d23);
+  --chip: light-dark(#e6e9ee, #262a32);
+  --line: light-dark(#d3d8e0, #2c313a);
+  --title: light-dark(#111418, #ffffff);
+  --text: light-dark(#2b3038, #d8dce3);
+  --sub: light-dark(#6b717c, #8a909b);
+  --accent: light-dark(#2f6fd6, #5b9cf0);
+  --member: light-dark(#eef0f4, #323845);
+  --member-line: light-dark(#cdd2da, #434a59);
+  --heading: light-dark(#dfe8f6, #1c2a40);
+  --shadow: light-dark(rgb(0 0 0 / 0.12), rgb(0 0 0 / 0.5));
+  /* 色付きの文字を読みやすくするときに混ぜる色 */
+  --ink: light-dark(black, white);
+}
+:root[data-theme='dark'] {
   color-scheme: dark;
-  --bg: #0f1115;
-  --card: #1a1d23;
-  --chip: #262a32;
-  --line: #2c313a;
-  --title: #ffffff;
-  --text: #d8dce3;
-  --sub: #8a909b;
-  --accent: #5b9cf0;
+}
+:root[data-theme='light'] {
+  color-scheme: light;
 }
 body {
   margin: 0;
@@ -47,6 +60,13 @@ nav button[aria-pressed='true'] {
   display: flex;
   gap: 8px;
   margin-left: 16px;
+  color: var(--sub);
+}
+.theme {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
   color: var(--sub);
 }
 .seg-group {
@@ -126,9 +146,9 @@ h2 {
   padding: 5px 10px;
   font-size: 15px;
   color: var(--title);
-  background: #1c2a40;
+  background: var(--heading);
   border-left: 5px solid var(--accent);
-  box-shadow: 0 2px 4px rgb(0 0 0 / 0.5);
+  box-shadow: 0 2px 4px var(--shadow);
 }
 .others {
   padding: 0 8px 8px;
@@ -199,7 +219,7 @@ h2 {
   padding: 0 5px;
   line-height: 16px;
   font-weight: bold;
-  color: color-mix(in srgb, var(--c) 55%, white);
+  color: color-mix(in srgb, var(--c) 55%, var(--ink));
   background: color-mix(in srgb, var(--c) 22%, transparent);
   border: 1px solid color-mix(in srgb, var(--c) 50%, transparent);
 }
@@ -247,6 +267,10 @@ h2 {
   font-weight: bold;
   color: var(--text);
 }
+/* 現在人数は最大人数より目立たせる */
+.cap b:first-child {
+  font-size: 14px;
+}
 .bar {
   height: 2px;
   border-radius: 1px;
@@ -265,19 +289,19 @@ h2 {
   background: #e05050;
 }
 .cap .n-1 {
-  color: #ff7eb6;
+  color: light-dark(#d6336c, #ff7eb6);
 }
 .cap .n-2 {
-  color: #ffa94d;
+  color: light-dark(#d9480f, #ffa94d);
 }
 .cap .n-4 {
-  color: #e0c080;
+  color: light-dark(#9c7a1c, #e0c080);
 }
 .cap .n-10 {
-  color: #4dd4d4;
+  color: light-dark(#0c8599, #4dd4d4);
 }
 .cap .n-30 {
-  color: #7fa8ff;
+  color: light-dark(#3b5bdb, #7fa8ff);
 }
 .members {
   display: flex;
@@ -293,13 +317,13 @@ h2 {
   font-size: 13px;
   font-weight: 600;
   border-radius: 4px;
-  background: #323845;
-  border: 1px solid #434a59;
+  background: var(--member);
+  border: 1px solid var(--member-line);
   color: var(--title);
 }
 /* お気に入りのフレンドは、お気に入りグループごとの色の枠で区別する（見出しも同じ色） */
 .member.fav {
-  background: color-mix(in srgb, var(--fav) 18%, #323845);
+  background: color-mix(in srgb, var(--fav) 18%, var(--member));
   border-color: var(--fav);
 }
 .fav-group_0 {
@@ -418,7 +442,7 @@ h2[class^='fav-'] {
   cursor: pointer;
 }
 .button.primary {
-  color: var(--title);
+  color: white;
   background: var(--accent);
   border-color: var(--accent);
   font-weight: bold;
@@ -447,7 +471,7 @@ h2[class^='fav-'] {
   box-sizing: border-box;
   background: var(--card);
   border-left: 1px solid var(--line);
-  box-shadow: -4px 0 12px rgb(0 0 0 / 0.5);
+  box-shadow: -4px 0 12px var(--shadow);
 }
 .drawer-close {
   position: absolute;
@@ -539,7 +563,7 @@ h2[class^='fav-'] {
   color: #1778ff;
 }
 .trust.visitor {
-  color: #ccc;
+  color: light-dark(#888, #ccc);
 }
 .dot {
   width: 8px;
@@ -582,7 +606,7 @@ h2[class^='fav-'] {
   color: #888;
 }
 .ev-friend-location .ev {
-  color: #7fa8ff;
+  color: light-dark(#3b5bdb, #7fa8ff);
 }
 .log-row .fav {
   color: var(--fav);
@@ -611,13 +635,13 @@ h2[class^='fav-'] {
   padding: 0 8px;
   line-height: 18px;
   color: var(--text);
-  background: #2a3a2a;
-  border: 1px solid #3f6b3f;
+  background: light-dark(#e3f1e3, #2a3a2a);
+  border: 1px solid light-dark(#9cc79c, #3f6b3f);
   border-radius: 3px;
   cursor: pointer;
 }
 .launch:hover {
-  background: #355235;
+  background: light-dark(#d2e8d2, #355235);
 }
 /* 正式公開でないワールドはサムネイルを枠で目立たせる */
 .ws-private {
@@ -655,7 +679,7 @@ h2[class^='fav-'] {
 .login-required .notice .notice-title {
   font-size: 15px;
   font-weight: bold;
-  color: #ffcc4d;
+  color: light-dark(#9a6700, #ffcc4d);
 }
 /* グループの詳細パネル */
 .group-banner {

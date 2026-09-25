@@ -1,4 +1,4 @@
-import { For, onMount, Show } from 'solid-js';
+import { createEffect, For, onMount, Show } from 'solid-js';
 import { inPrivate, inWorld, outsideGame, type Friend } from '@/lib/vrchat';
 import { FriendCard, InstanceCard, Member } from './cards';
 import { LogTab } from './log';
@@ -38,6 +38,9 @@ const [outsideMode, setOutsideMode] = persisted<'separate' | 'hidden'>('outsideM
   'hidden',
 ]);
 const showOutside = () => outsideMode() === 'separate';
+// 配色。自動は OS の設定に従う
+const THEMES = { dark: 'ダーク', light: 'ライト', system: '自動' };
+const [theme, setTheme] = persisted('theme', 'dark', keysOf(THEMES));
 const [favMode, setFavMode] = persisted<'grouped' | 'mixed'>('favMode', 'grouped', ['grouped', 'mixed']);
 const [friendSort, setFriendSort] = persisted('friendSort', 'default', keysOf(FRIEND_SORTS));
 const [friendReverse, setFriendReverse] = persisted<boolean>('friendReverse', false);
@@ -179,6 +182,11 @@ function InstancesTab() {
 
 export function App() {
   onMount(() => load().catch(e => setState('error', (e as Error).message)));
+  createEffect(() => {
+    const root = document.documentElement;
+    if (theme() === 'system') delete root.dataset.theme;
+    else root.dataset.theme = theme();
+  });
   const loading = () => state.progress.done < state.progress.total;
   const header = () => {
     if (!state.me) return '読み込み中…';
@@ -257,6 +265,18 @@ export function App() {
               />{' '}
               非表示
             </label>
+          </span>
+          <span class="theme">
+            テーマ:
+            <span class="seg">
+              <For each={keysOf(THEMES)}>
+                {k => (
+                  <button aria-pressed={theme() === k} onClick={() => setTheme(k)}>
+                    {THEMES[k]}
+                  </button>
+                )}
+              </For>
+            </span>
           </span>
         </nav>
         <main>
