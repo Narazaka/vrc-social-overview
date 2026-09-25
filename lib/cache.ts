@@ -43,6 +43,10 @@ export function ttlStore<T>(name: string, max: number) {
       data[key] = { v, at: Date.now() };
       save();
     },
+    delete: (key: string) => {
+      delete data[key];
+      save();
+    },
   };
 }
 
@@ -54,6 +58,8 @@ const EXPIRY_MARGIN = 60 * 60 * 1000;
 // 署名 URL に期限が付いていない場合の保存期間
 const DEFAULT_IMAGE_TTL = 24 * 60 * 60 * 1000;
 const imageLimited = createLimiter(6);
+// 応答が返ってこない取得で同時取得の枠が埋まり、後の画像が止まらないよう打ち切る
+const IMAGE_TIMEOUT = 15 * 1000;
 const resolving = new Map<string, Promise<string>>();
 
 export function resolveImage(url: string): Promise<string> {
@@ -64,7 +70,9 @@ export function resolveImage(url: string): Promise<string> {
     // 画像 API は認証不要で、リダイレクト先の CDN に Cookie を送ると CORS で弾かれるので送らない。
     // CDN は HEAD に CORS ヘッダーを付けないので GET で取る。img が CORS なしで読んだ応答がキャッシュにあると
     // CORS で失敗するのでキャッシュは読まず（reload）、取った応答はキャッシュに入るので続く img 表示はそれを使う
-    p = imageLimited(() => fetch(url, { credentials: 'omit', cache: 'reload' }))
+    p = imageLimited(() =>
+      fetch(url, { credentials: 'omit', cache: 'reload', signal: AbortSignal.timeout(IMAGE_TIMEOUT) }),
+    )
       .then(res => {
         if (!res.ok) throw new Error(`${res.status} ${url}`);
         const expires = Number(new URL(res.url).searchParams.get('Expires')) * 1000;
@@ -76,3 +84,6 @@ export function resolveImage(url: string): Promise<string> {
   }
   return p;
 }
+
+// 保存したリダイレクト先が表示できなかったときに捨てる
+export const forgetImage = (url: string) => resolvedImages.delete(url);

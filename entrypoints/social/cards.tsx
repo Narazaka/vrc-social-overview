@@ -1,5 +1,5 @@
 import { createEffect, createSignal, For, onCleanup, Show } from 'solid-js';
-import { resolveImage } from '@/lib/cache';
+import { forgetImage, resolveImage } from '@/lib/cache';
 import {
   img,
   inWorld,
@@ -69,7 +69,14 @@ export function Img(p: { src: string | undefined; class?: string; onMissing?: ()
     );
     onCleanup(() => (live = false));
   });
-  return <img ref={observe} class={p.class} src={src()} />;
+  // 保存していたリダイレクト先が表示できなければ（署名 URL が使えなくなった等）、保存を捨てて画像 API の URL で取り直す
+  const retry = () => {
+    const url = p.src;
+    if (!url || src() === url) return;
+    forgetImage(url);
+    setSrc(url);
+  };
+  return <img ref={observe} class={p.class} src={src()} onError={retry} />;
 }
 
 // ゲーム外（Web・モバイル）のフレンドは VRChat の慣例どおり輪郭だけの丸にする
