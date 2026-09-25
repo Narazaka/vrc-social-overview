@@ -35,59 +35,76 @@ header {
   padding: 4px 8px;
   color: var(--sub);
 }
+/* タブは下線で選択中を示し、右端に全体の表示設定を置く */
 nav {
   display: flex;
-  gap: 4px;
-  padding: 0 8px;
-  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 2px 8px 0;
+  align-items: flex-end;
+  border-bottom: 1px solid var(--line);
 }
-nav button {
+nav > button {
   font: inherit;
+  font-size: 13px;
   color: var(--sub);
-  padding: 3px 12px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--card);
+  padding: 5px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
   cursor: pointer;
 }
-nav button[aria-pressed='true'] {
+nav > button:hover {
+  color: var(--text);
+}
+nav > button[aria-pressed='true'] {
   color: var(--title);
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 25%, var(--card));
+  border-bottom-color: var(--accent);
   font-weight: bold;
 }
-.outside-mode {
+.nav-settings {
   display: flex;
-  gap: 8px;
-  margin-left: 16px;
-  color: var(--sub);
-}
-.animation-toggle {
-  margin-left: auto;
-  color: var(--sub);
-}
-.theme {
-  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  margin-left: 16px;
-  color: var(--sub);
+  gap: 6px 16px;
+  margin-left: auto;
+  padding-bottom: 4px;
 }
-.seg-group {
+/* 見出し + 選択肢のまとまり */
+.ctl {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+.ctl-label {
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--sub);
 }
 .seg {
   display: inline-flex;
 }
-.seg button {
+.seg button,
+.toggle {
   font: inherit;
   color: var(--sub);
-  padding: 1px 8px;
+  padding: 2px 10px;
   border: 1px solid var(--line);
-  background: var(--card);
+  background: var(--bg);
   cursor: pointer;
+}
+.toggle {
+  border-radius: 4px;
+}
+.seg button:hover:not(:disabled),
+.toggle:hover {
+  color: var(--text);
+}
+.toggle[aria-pressed='true'] {
+  color: var(--title);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 35%, var(--card));
+  font-weight: bold;
 }
 .seg button:disabled {
   opacity: 0.4;
@@ -124,20 +141,22 @@ nav button[aria-pressed='true'] {
 .progress-text {
   color: var(--accent);
 }
+/* タブごとの操作は、一覧と区別できるよう帯にまとめる */
 .modes {
-  padding: 6px 8px 0;
+  margin: 6px 8px 0;
+  padding: 5px 10px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 6px 20px;
   color: var(--sub);
-}
-.modes select {
-  font: inherit;
-  color: var(--text);
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 1px 4px;
+  border-radius: 6px;
+}
+.modes .updated {
+  margin-left: auto;
+  font-size: 11px;
 }
 .grid {
   display: grid;

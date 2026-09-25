@@ -1,4 +1,4 @@
-import { createEffect, createMemo, For, onCleanup, onMount, Show } from 'solid-js';
+import { createEffect, createMemo, For, onCleanup, onMount, Show, type JSX } from 'solid-js';
 import { img, inPrivate, inWorld, outsideGame, ownerIdOf, type Friend } from '@/lib/vrchat';
 import { FriendCard, Img, InstanceCard, Member } from './cards';
 import { LogTab } from './log';
@@ -68,9 +68,10 @@ const THEMES = { dark: 'ダーク', light: 'ライト', system: '自動' };
 const [theme, setTheme] = persisted('theme', 'dark', keysOf(THEMES));
 const [favMode, setFavMode] = persisted<'grouped' | 'mixed'>('favMode', 'grouped', ['grouped', 'mixed']);
 
-// 選択肢を並べて 1 クリックで切り替えられるようにする。disabled の選択肢は選べない
-function SortButtons<K extends string>(p: {
-  options: Record<K, [string, ...unknown[]]>;
+// 操作部品。選択肢はラジオボタンではなく並べたボタンにし、見た目と操作をそろえる
+// 選択肢を並べて 1 クリックで切り替えられるようにする（options の値は表示名、または先頭が表示名の配列）。disabled の選択肢は選べない
+function Segmented<K extends string>(p: {
+  options: Record<K, string | readonly [string, ...unknown[]]>;
   value: K;
   set: (k: K) => void;
   disabled?: string;
@@ -78,20 +79,31 @@ function SortButtons<K extends string>(p: {
   return (
     <span class="seg">
       <For each={keysOf(p.options)}>
-        {k => (
-          <button aria-pressed={p.value === k} disabled={p.disabled === k} onClick={() => p.set(k)}>
-            {p.options[k][0]}
-          </button>
-        )}
+        {k => {
+          const o = p.options[k];
+          return (
+            <button aria-pressed={p.value === k} disabled={p.disabled === k} onClick={() => p.set(k)}>
+              {typeof o === 'string' ? o : o[0]}
+            </button>
+          );
+        }}
       </For>
     </span>
   );
 }
 
-const ReverseBox = (p: { value: boolean; set: (v: boolean) => void }) => (
-  <label>
-    <input type="checkbox" checked={p.value} onChange={e => p.set(e.currentTarget.checked)} /> 逆順
-  </label>
+const Toggle = (p: { value: boolean; set: (v: boolean) => void; title?: string; children: JSX.Element }) => (
+  <button class="toggle" aria-pressed={p.value} title={p.title} onClick={() => p.set(!p.value)}>
+    {p.children}
+  </button>
+);
+
+// 見出し付きの操作のまとまり
+const Ctl = (p: { label: string; children: JSX.Element }) => (
+  <span class="ctl">
+    <span class="ctl-label">{p.label}</span>
+    {p.children}
+  </span>
 );
 
 // 並びの設定。第 1 条件で同じだったものを第 2 条件で並べ、それぞれ逆順にできる（開き直しても保つ）
@@ -109,18 +121,24 @@ function sortSetting<T, K extends string>(name: string, sorts: Record<K, [string
     const k = second();
     return [[sorts[key()][1], reverse()], ...(k ? [[sorts[k][1], reverse2()] as [SortKey<T>, boolean]] : [])];
   };
-  const secondOptions = { none: ['なし'], ...sorts } as Record<K | 'none', [string, ...unknown[]]>;
+  const secondOptions = { none: 'なし', ...sorts } as Record<K | 'none', string | [string, SortKey<T>]>;
   const Control = () => (
-    <span class="seg-group">
-      並び:
-      <SortButtons options={sorts} value={key()} set={setKey} />
-      <ReverseBox value={reverse()} set={setReverse} />
-      次に:
-      <SortButtons options={secondOptions} value={second() ?? 'none'} set={setKey2} disabled={key()} />
-      <Show when={second()}>
-        <ReverseBox value={reverse2()} set={setReverse2} />
-      </Show>
-    </span>
+    <>
+      <Ctl label="並び">
+        <Segmented options={sorts} value={key()} set={setKey} />
+        <Toggle value={reverse()} set={setReverse}>
+          逆順
+        </Toggle>
+      </Ctl>
+      <Ctl label="次に">
+        <Segmented options={secondOptions} value={second() ?? 'none'} set={setKey2} disabled={key()} />
+        <Show when={second()}>
+          <Toggle value={reverse2()} set={setReverse2}>
+            逆順
+          </Toggle>
+        </Show>
+      </Ctl>
+    </>
   );
   return { specs, Control };
 }
@@ -225,15 +243,9 @@ function FriendsTab() {
   return (
     <>
       <div class="modes">
-        お気に入り:
-        <label>
-          <input type="radio" name="favmode" checked={favMode() === 'grouped'} onChange={() => setFavMode('grouped')} />{' '}
-          グループ別
-        </label>
-        <label>
-          <input type="radio" name="favmode" checked={favMode() === 'mixed'} onChange={() => setFavMode('mixed')} />{' '}
-          まとめて
-        </label>
+        <Ctl label="お気に入り">
+          <Segmented options={{ grouped: 'グループ別', mixed: 'まとめて' }} value={favMode()} set={setFavMode} />
+        </Ctl>
         <friendSort.Control />
       </div>
       <Show when={favMode() === 'grouped'} fallback={<FriendSection title="お気に入り" list={favs()} />}>
@@ -306,7 +318,11 @@ function GroupsTab() {
         </button>
         <groupSort.Control />
         <Show when={state.groupInstancesAt}>
-          {at => <span>最終更新 {new Date(at()).toLocaleTimeString()}（開いている間は 5 分ごとに自動更新）</span>}
+          {at => (
+            <span class="updated">
+              最終更新 {new Date(at()).toLocaleTimeString()}（開いている間は 5 分ごとに自動更新）
+            </span>
+          )}
         </Show>
       </div>
       <GroupList />
@@ -416,42 +432,20 @@ export function App() {
           <button aria-pressed={tab() === 'log'} onClick={() => setTab('log')}>
             イベント ({state.eventLog.length})
           </button>
-          <span class="outside-mode">
-            Web・モバイルのフレンド:
-            <label>
-              <input
-                type="radio"
-                name="outsideMode"
-                checked={outsideMode() === 'separate'}
-                onChange={() => setOutsideMode('separate')}
-              />{' '}
-              分けて表示
-            </label>
-            <label>
-              <input
-                type="radio"
-                name="outsideMode"
-                checked={outsideMode() === 'hidden'}
-                onChange={() => setOutsideMode('hidden')}
-              />{' '}
-              非表示
-            </label>
-          </span>
-          <label class="animation-toggle" title="並びの入れ替わりや人数の増減をアニメーションで見せる">
-            <input type="checkbox" checked={motion()} onChange={e => setMotion(e.currentTarget.checked)} />{' '}
-            変化のアニメーション
-          </label>
-          <span class="theme">
-            テーマ:
-            <span class="seg">
-              <For each={keysOf(THEMES)}>
-                {k => (
-                  <button aria-pressed={theme() === k} onClick={() => setTheme(k)}>
-                    {THEMES[k]}
-                  </button>
-                )}
-              </For>
-            </span>
+          <span class="nav-settings">
+            <Ctl label="Web・モバイルのフレンド">
+              <Segmented
+                options={{ separate: '分けて表示', hidden: '非表示' }}
+                value={outsideMode()}
+                set={setOutsideMode}
+              />
+            </Ctl>
+            <Toggle value={motion()} set={setMotion} title="並びの入れ替わりや人数の増減をアニメーションで見せる">
+              変化のアニメーション
+            </Toggle>
+            <Ctl label="テーマ">
+              <Segmented options={THEMES} value={theme()} set={setTheme} />
+            </Ctl>
           </span>
         </nav>
         <main>
