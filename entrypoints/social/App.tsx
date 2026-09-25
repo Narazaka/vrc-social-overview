@@ -4,17 +4,22 @@ import { FriendCard, Img, InstanceCard, Member } from './cards';
 import { LogTab } from './log';
 import { Drawer } from './drawer';
 import { persisted } from './settings';
-import { byLoc, instanceOf, load, loadGroupInstances, openDrawer, ownerOf, setState, state } from './state';
+import { byLoc, instanceOf, load, loadGroupInstances, openDrawer, ownerOf, setState, state, worldOf } from './state';
 
-type SortKey<T> = (x: T) => number;
+type SortKey<T> = (x: T) => number | string;
 
-// 大きい順。キーが同じものは元の順（API が返した順）を保つ
+// 数値は大きい順、文字列は名前順（数字は数値として比べる）。キーが同じものは元の順（API が返した順）を保つ
+const collator = new Intl.Collator('ja', { numeric: true });
+const compare = (a: number | string, b: number | string) =>
+  typeof a === 'string' && typeof b === 'string' ? collator.compare(a, b) : Number(b) - Number(a);
 const sortBy = <T,>(list: T[], key: SortKey<T>, reverse: boolean) => {
-  const sorted = list.toSorted((a, b) => key(b) - key(a));
+  const sorted = list.toSorted((a, b) => compare(key(a), key(b)));
   return reverse ? sorted.toReversed() : sorted;
 };
 
 const usersIn = (loc: string) => instanceOf(loc)?.userCount ?? -1;
+// ワールド情報がまだ無いものは名前順の最後に回す
+const worldNameOf = (loc: string) => worldOf(loc)?.name ?? '\uffff';
 
 const FRIEND_SORTS = {
   default: ['既定', () => 0],
@@ -22,10 +27,18 @@ const FRIEND_SORTS = {
   users: ['インスタンス人数', f => (inWorld(f) ? usersIn(f.location) : -1)],
   // ページを開いてから移動・オンラインになった順。開いた時点の居場所に居続けている人は後ろ
   moved: ['最近の移動', f => state.movedAt[f.id] ?? 0],
+  name: ['名前', f => f.displayName],
+  world: ['ワールド名', f => (inWorld(f) ? worldNameOf(f.location) : '')],
 } satisfies Record<string, [string, SortKey<Friend>]>;
 const INSTANCE_SORTS = {
   friends: ['フレンド数', loc => byLoc().get(loc)!.length],
   users: ['現在人数', usersIn],
+  world: ['ワールド名', worldNameOf],
+} satisfies Record<string, [string, SortKey<string>]>;
+// グループタブ（グループの中のインスタンスの並び）
+const GROUP_SORTS = {
+  users: ['現在人数', usersIn],
+  world: ['ワールド名', worldNameOf],
 } satisfies Record<string, [string, SortKey<string>]>;
 
 const keysOf = <K extends string>(o: Record<K, unknown>) => Object.keys(o) as K[];
@@ -51,6 +64,8 @@ const [friendSort, setFriendSort] = persisted('friendSort', 'default', keysOf(FR
 const [friendReverse, setFriendReverse] = persisted<boolean>('friendReverse', false);
 const [instanceSort, setInstanceSort] = persisted('instanceSort', 'friends', keysOf(INSTANCE_SORTS));
 const [instanceReverse, setInstanceReverse] = persisted<boolean>('instanceReverse', false);
+const [groupSort, setGroupSort] = persisted('groupSort', 'users', keysOf(GROUP_SORTS));
+const [groupReverse, setGroupReverse] = persisted<boolean>('groupReverse', false);
 
 function SortControl<K extends string>(p: {
   sorts: Record<K, [string, unknown]>;
@@ -209,6 +224,13 @@ function GroupsTab() {
         >
           {state.groupInstancesLoading ? '更新中…' : '更新'}
         </button>
+        <SortControl
+          sorts={GROUP_SORTS}
+          key={groupSort()}
+          setKey={setGroupSort}
+          reverse={groupReverse()}
+          setReverse={setGroupReverse}
+        />
         <Show when={state.groupInstancesAt}>
           {at => <span>最終更新 {new Date(at()).toLocaleTimeString()}（開いている間は 5 分ごとに自動更新）</span>}
         </Show>
@@ -222,7 +244,11 @@ function GroupsTab() {
 function GroupList() {
   const usersOf = (locs: string[]) => locs.reduce((n, loc) => n + Math.max(usersIn(loc), 0), 0);
   const locsOf = (groupId: string) =>
-    (state.groupInstances ?? []).filter(loc => ownerIdOf(loc) === groupId).toSorted((a, b) => usersIn(b) - usersIn(a));
+    sortBy(
+      (state.groupInstances ?? []).filter(loc => ownerIdOf(loc) === groupId),
+      GROUP_SORTS[groupSort()][1],
+      groupReverse(),
+    );
   const groups = createMemo(() =>
     [...new Set((state.groupInstances ?? []).map(loc => ownerIdOf(loc)!))].toSorted(
       (a, b) => usersOf(locsOf(b)) - usersOf(locsOf(a)),
