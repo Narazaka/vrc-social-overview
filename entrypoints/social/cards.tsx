@@ -14,7 +14,7 @@ import {
   placeIcon,
   openInGame,
 } from '@/lib/vrchat';
-import { byLoc, favClass, instanceOf, openDrawer, ownerOf, state, worldOf } from './state';
+import { byLoc, favClass, instanceOf, openDrawer, ownerOf, requestAvatar, setShown, state, worldOf } from './state';
 
 const OWNER_KIND_LABEL = {
   friend: 'オーナー（フレンド）',
@@ -23,24 +23,23 @@ const OWNER_KIND_LABEL = {
   group: 'オーナー（加入していないグループ）',
 };
 
-// 画面に近づいた画像に知らせる。画像ごとに作ると数百個になるので 1 つを共有する
-const onVisible = new Map<Element, () => void>();
-const lazyObserver = new IntersectionObserver(
+// 要素が画面に近づいた・離れたことを知らせる。要素ごとに作ると数百個になるので 1 つを共有する
+const onVisibility = new Map<Element, (visible: boolean) => void>();
+const visibilityObserver = new IntersectionObserver(
   entries => {
-    for (const e of entries) {
-      if (!e.isIntersecting) continue;
-      onVisible.get(e.target)?.();
-      unwatch(e.target);
-    }
+    for (const e of entries) onVisibility.get(e.target)?.(e.isIntersecting);
   },
   { rootMargin: '300px' },
 );
-const unwatch = (el: Element) => {
-  lazyObserver.unobserve(el);
-  onVisible.delete(el);
-};
+function watchVisibility(el: Element, fn: (visible: boolean) => void) {
+  onVisibility.set(el, fn);
+  visibilityObserver.observe(el);
+  onCleanup(() => {
+    visibilityObserver.unobserve(el);
+    onVisibility.delete(el);
+  });
+}
 
-// 画面に近づいてから画像 URL を解決して表示する（画像 API へのアクセスを見えるものだけに絞る）
 const LAUNCH_TITLE = 'クリックでゲームで開く（招待は送りません）';
 
 // インスタンス種別の表示が無い詳細パネル用
@@ -50,17 +49,16 @@ export const LaunchButton = (p: { loc: string }) => (
   </button>
 );
 
-export function Img(p: { src: string | undefined; class?: string }) {
+// 画面に近づいてから画像 URL を解決して表示する（画像 API へのアクセスを見えるものだけに絞る）。
+// 画像 URL がまだ分からなければ onMissing で取得を頼む
+export function Img(p: { src: string | undefined; class?: string; onMissing?: () => void }) {
   const [visible, setVisible] = createSignal(false);
   const [src, setSrc] = createSignal<string>();
-  const observe = (el: HTMLImageElement) => {
-    onVisible.set(el, () => setVisible(true));
-    lazyObserver.observe(el);
-    onCleanup(() => unwatch(el));
-  };
+  const observe = (el: HTMLImageElement) => watchVisibility(el, v => v && setVisible(true));
   createEffect(() => {
     const url = p.src;
-    if (!visible() || !url) return;
+    if (!visible()) return;
+    if (!url) return p.onMissing?.();
     let live = true;
     // 解決に失敗したら画像 API の URL をそのまま使う
     resolveImage(url).then(
@@ -88,7 +86,7 @@ export function Member(p: { f: Friend }) {
       title={p.f.statusDescription}
       onClick={() => openDrawer(p.f.id)}
     >
-      <Img src={img(p.f.currentAvatarImageUrl, 64)} />
+      <Img src={img(p.f.currentAvatarImageUrl, 64)} onMissing={() => requestAvatar(p.f.id)} />
       <Dot f={p.f} />
       <span>{p.f.displayName}</span>
     </div>
@@ -124,13 +122,26 @@ function InstanceHead(p: { loc: string; compact?: boolean }) {
   // インスタンス取得前は保存済みのワールド情報で名前とサムネイルを出す
   const world = () => worldOf(p.loc);
   const openWorld = () => openDrawer(worldIdOf(p.loc));
+  // 見えている間だけ人数などを取る対象にする（移動で loc が変われば付け替える）
+  const [visible, setVisible] = createSignal(false);
+  createEffect(() => {
+    if (!visible()) return;
+    const loc = p.loc;
+    setShown(loc, true);
+    onCleanup(() => setShown(loc, false));
+  });
   const title = () => {
     const i = state.instances[p.loc];
     return i && 'error' in i ? `取得失敗 (${i.error})` : (world()?.name ?? '読み込み中…');
   };
   // サムネイルはゲームで開き、それ以外の部分はワールドの詳細を開く（作者・オーナーはそれぞれのプロフィール）
   return (
-    <div class="head" classList={{ compact: p.compact }} onClick={openWorld}>
+    <div
+      class="head"
+      classList={{ compact: p.compact }}
+      ref={el => watchVisibility(el, setVisible)}
+      onClick={openWorld}
+    >
       <span
         class="clickable"
         title={LAUNCH_TITLE}
@@ -238,7 +249,7 @@ export function FriendCard(p: { f: Friend }) {
             void openInGame(p.f.location);
           }}
         >
-          <Img src={img(p.f.currentAvatarImageUrl, 128)} />
+          <Img src={img(p.f.currentAvatarImageUrl, 128)} onMissing={() => requestAvatar(p.f.id)} />
         </span>
         <div>
           <div class="name">

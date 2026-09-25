@@ -108,11 +108,15 @@ const memberKey = (fs: Friend[]) =>
     .sort()
     .join(',');
 
+// 取得中のインスタンス。取得中に顔ぶれが変わっても重ねて取らない
+const inFlight = new Set<string>();
+
 // 人数を取り直す（インスタンスの応答に含まれるワールド情報も更新する）。取り直すまでは前回の値を古い値として出す
-export function refreshInstance(loc: string, members: string) {
+function refreshInstance(loc: string, members: string) {
   const old = instanceCache.any(loc);
   if (old) setState('instances', loc, { userCount: old.userCount, stale: true });
-  track(fetchInstance(loc)).then(
+  inFlight.add(loc);
+  track(fetchInstance(loc).finally(() => inFlight.delete(loc))).then(
     i => {
       // ストアの setState はオブジェクトをマージするので stale を明示して消す
       setState('instances', loc, { userCount: i.userCount, stale: false });
@@ -150,26 +154,32 @@ export function ownerOf(id: string): OwnerView | undefined {
 const REFRESH_INTERVAL = 30 * 1000;
 const refreshScheduled = new Set<string>();
 
-// 人数を必要なら取り直す。取り直すと応答に含まれるワールド情報も新しくなるので true を返す
-function syncInstance(loc: string): boolean {
-  const members = byLoc().get(loc);
-  if (!members) return false;
-  const key = memberKey(members);
+// 保存してある人数から今の人数を出す。顔ぶれが同じで新しければそのまま確定値として使い（true を返す）、
+// そうでなければ前回の人数にフレンドの増減だけを反映した未確定の値を出す
+function applyCachedCount(loc: string, members: Friend[], key: string): boolean {
   const cached = instanceCache.fresh(loc, INSTANCE_TTL);
   if (cached?.members === key) {
     setState('instances', loc, { userCount: cached.userCount, stale: false });
-    return false;
+    return true;
   }
-  const recent = instanceCache.fresh(loc, REFRESH_INTERVAL);
-  if (recent) {
-    // 取り直すまでは、前回の人数にフレンドの増減だけを反映した未確定の値を出す
-    const estimate = recent.userCount + members.length - recent.members.split(',').length;
+  const old = instanceCache.any(loc);
+  if (old) {
+    const estimate = old.userCount + members.length - old.members.split(',').length;
     setState('instances', loc, { userCount: Math.max(estimate, members.length), stale: true });
+  }
+  return false;
+}
+
+// 人数を必要なら取り直す。取り直すと応答に含まれるワールド情報も新しくなるので true を返す
+function syncInstance(loc: string, members: Friend[]): boolean {
+  const key = memberKey(members);
+  if (applyCachedCount(loc, members, key)) return false;
+  if (inFlight.has(loc) || instanceCache.fresh(loc, REFRESH_INTERVAL)) {
     if (!refreshScheduled.has(loc)) {
       refreshScheduled.add(loc);
       setTimeout(() => {
         refreshScheduled.delete(loc);
-        syncInstance(loc);
+        syncLoc(loc);
       }, REFRESH_INTERVAL);
     }
     return false;
@@ -206,24 +216,44 @@ function syncOwner(loc: string) {
     );
 }
 
+// インスタンスの人数・ワールド・オーナーは、画面に見えている（近い）ものだけ取る。
+// 見えていない間は保存値からの推定だけ出しておき、見えたときに取る。ページが隠れている間も取らない
+const shownCount = new Map<string, number>();
+const pendingLocs = new Set<string>();
+const isShown = (loc: string) => !document.hidden && (shownCount.get(loc) ?? 0) > 0;
+
+// 同じインスタンスが一覧に複数回出ることがあるので、見えている表示の数を数える
+export function setShown(loc: string, shown: boolean) {
+  const n = (shownCount.get(loc) ?? 0) + (shown ? 1 : -1);
+  if (n > 0) shownCount.set(loc, n);
+  else shownCount.delete(loc);
+  if (shown && n === 1 && pendingLocs.has(loc)) syncLoc(loc);
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) for (const loc of pendingLocs) if (isShown(loc)) syncLoc(loc);
+});
+
+function syncLoc(loc: string) {
+  const members = byLoc().get(loc);
+  if (!members) {
+    pendingLocs.delete(loc);
+    return;
+  }
+  if (!isShown(loc)) {
+    applyCachedCount(loc, members, memberKey(members));
+    pendingLocs.add(loc);
+    return;
+  }
+  pendingLocs.delete(loc);
+  if (!syncInstance(loc, members)) syncWorld(worldIdOf(loc));
+  syncOwner(loc);
+}
+
 // フレンド一覧を取り直して、各インスタンスの人数・オーナー・ワールドを埋める
 async function syncFriends(friends?: Friend[]) {
   // 同じ人のカードを作り直さないよう、ID で突き合わせて差分だけ反映する
   setState('friends', reconcile(friends ?? (await fetchFriends()), { key: 'id' }));
-
-  // よく見る場所から先に埋まるよう、お気に入りのフレンドが多い順、次にフレンドが多い順に取得する
-  const locs = [...byLoc()]
-    .map(([loc, fs]) => ({ loc, fav: fs.filter(f => f.id in state.favTags).length, n: fs.length }))
-    .sort((a, b) => b.fav - a.fav || b.n - a.n)
-    .map(x => x.loc);
-
-  const worldsRefreshed = new Set<string>();
-  for (const loc of locs) {
-    if (syncInstance(loc)) worldsRefreshed.add(worldIdOf(loc));
-    syncOwner(loc);
-  }
-  // インスタンスを取り直さなかったワールドは、期限切れのものだけワールド単体で取り直す
-  for (const worldId of new Set(locs.map(worldIdOf))) if (!worldsRefreshed.has(worldId)) syncWorld(worldId);
+  for (const loc of byLoc().keys()) syncLoc(loc);
 }
 
 // Pipeline の user には表示に使う項目のうちこれらだけが入っている（アバター画像は入らない）
@@ -245,29 +275,39 @@ function patchFriend(id: string, patch: Partial<Friend>) {
       statusDescription: '',
       location: 'offline',
       platform: '',
-      currentAvatarImageUrl: '',
+      currentAvatarImageUrl: knownAvatars.get(id) ?? '',
       ...patch,
     };
     setState('friends', fs => [...fs, f]);
-    fetchAvatarImage(id).then(
-      url => setState('friends', fs => fs.id === id, 'currentAvatarImageUrl', url),
-      () => {},
-    );
   }
   if (patch.location === undefined || patch.location === oldLoc) return;
   setState('movedAt', id, Date.now());
   // 抜けた先と入った先のインスタンスは人数が変わっている
-  for (const loc of [oldLoc, patch.location])
-    if (loc?.startsWith('wrld_')) {
-      if (!syncInstance(loc)) syncWorld(worldIdOf(loc));
-      syncOwner(loc);
-    }
+  for (const loc of [oldLoc, patch.location]) if (loc?.startsWith('wrld_')) syncLoc(loc);
+}
+
+// オフラインになったフレンドのアバター画像。またオンラインになったときに取り直さずに済むよう覚えておく
+const knownAvatars = new Map<string, string>();
+const avatarRequested = new Set<string>();
+
+// Pipeline のイベントにはアバター画像が無いので、アバター画像が分からないフレンドが画面に見えたときに取る
+export function requestAvatar(id: string) {
+  if (avatarRequested.has(id)) return;
+  avatarRequested.add(id);
+  fetchAvatarImage(id).then(
+    url => {
+      knownAvatars.set(id, url);
+      setState('friends', f => f.id === id, 'currentAvatarImageUrl', url);
+    },
+    () => {},
+  );
 }
 
 function removeFriend(id: string) {
-  const loc = friendsById().get(id)?.location;
-  setState('friends', fs => fs.filter(f => f.id !== id));
-  if (loc?.startsWith('wrld_')) syncInstance(loc);
+  const f = friendsById().get(id);
+  if (f?.currentAvatarImageUrl) knownAvatars.set(id, f.currentAvatarImageUrl);
+  setState('friends', fs => fs.filter(x => x.id !== id));
+  if (f?.location.startsWith('wrld_')) syncLoc(f.location);
 }
 
 // イベントの種類と中身は https://vrchat.community/websocket
