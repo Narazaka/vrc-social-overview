@@ -169,7 +169,8 @@ function applyCachedCount(loc: string, members: Friend[], key: string): boolean 
     return true;
   }
   const old = instanceCache.any(loc);
-  if (old) {
+  // 顔ぶれ（members）を保存するようになる前の記録が残っていることがあるので、無ければ推定しない
+  if (typeof old?.members === 'string') {
     const estimate = old.userCount + members.length - old.members.split(',').length;
     setState('instances', loc, { userCount: Math.max(estimate, members.length), stale: true });
   }
