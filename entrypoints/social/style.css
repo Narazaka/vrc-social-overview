@@ -189,6 +189,10 @@ h2 {
   border-radius: 6px;
   padding: 6px;
 }
+/* 空の一覧は高さを持たせない（入れ物は出現のアニメーションのために残している） */
+.grid:empty {
+  padding: 0;
+}
 /* 画面外のカードは描画を省く。高さは未描画時の仮値で、一度描画されたら実測値を覚える */
 .card {
   content-visibility: auto;

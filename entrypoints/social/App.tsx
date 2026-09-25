@@ -1,4 +1,4 @@
-import { createEffect, createMemo, For, onCleanup, onMount, Show, type JSX } from 'solid-js';
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type JSX } from 'solid-js';
 import { img, inPrivate, inWorld, outsideGame, ownerIdOf, type Friend } from '@/lib/vrchat';
 import { FriendCard, Img, InstanceCard, Member } from './cards';
 import { LogTab } from './log';
@@ -147,12 +147,18 @@ const instanceSort = sortSetting('instance', INSTANCE_SORTS, 'friends');
 const groupSort = sortSetting('group', GROUP_SORTS, 'users');
 
 // 並びが変わったとき（増減・並べ替え・移動）に、各要素を前の位置から今の位置へ滑らかに動かし（FLIP）、
-// 新しく現れた要素はふわっと出し、消えた要素はその場でふわっと消す。変化がどこで起きたか目で追えるようにするため。
+// 新しく現れた要素は真っ白から元の色へ、消えた要素は元の色から真っ黒へ変えてから消す。変化がどこで起きたか目で追えるようにするため。
+// 出入りは周りのカードが動くのに紛れないよう、動きではなく明るさで、移動より長く見せる。
 // 前の位置は、前回の変化の直後と、入れ物の大きさが変わったとき（折り返し位置の変化など）に測っておく
 const REORDER_DURATION = 300;
+const ENTER_EXIT_DURATION = 1200;
 type Box = { x: number; y: number; w: number; h: number };
+// コントラストを 0 にすると一面の灰色になり、そこから明るさで真っ白・真っ黒にできる
+const NORMAL = 'contrast(1) brightness(1)';
+const WHITE = 'contrast(0) brightness(2)';
+const BLACK = 'contrast(0) brightness(0)';
 
-// 消えた要素の複製を、消える前にあった位置へ重ねて薄れさせる（元の要素はもう DOM から外れている）
+// 消えた要素の複製を、消える前にあった位置へ重ねて黒く沈めてから消す（元の要素はもう DOM から外れている）
 function fadeOutGhost(el: Element, at: Box) {
   const ghost = el.cloneNode(true) as HTMLElement;
   Object.assign(ghost.style, {
@@ -167,13 +173,26 @@ function fadeOutGhost(el: Element, at: Box) {
     zIndex: '5',
   });
   document.body.append(ghost);
-  ghost.animate([{ opacity: 1 }, { opacity: 0 }], REORDER_DURATION);
+  ghost.animate(
+    [
+      { filter: NORMAL, opacity: 1 },
+      { filter: BLACK, opacity: 1, offset: 0.6 },
+      { filter: BLACK, opacity: 0 },
+    ],
+    ENTER_EXIT_DURATION,
+  );
   // 描画が止まっていてアニメーションが終わらなくても残らないよう、終わりはタイマーで決める
-  setTimeout(() => ghost.remove(), REORDER_DURATION);
+  setTimeout(() => ghost.remove(), ENTER_EXIT_DURATION);
 }
+
+// ページを開いて一覧がそろうまでは、出そろう様子を出現として見せない
+const [settled, setSettled] = createSignal(false);
 
 function animateReorder(container: HTMLElement) {
   let last = new Map<Element, Box>();
+  // 入れ物が作られた直後に中身が入るのは出現ではないので、作られた処理が終わってからの変化だけを見せる
+  let shown = false;
+  setTimeout(() => (shown = true));
   const measure = () => {
     const base = container.getBoundingClientRect();
     last = new Map(
@@ -187,10 +206,10 @@ function animateReorder(container: HTMLElement) {
   const onScreen = (y: number, h: number) => y < innerHeight && y + h > 0;
   const mutations = new MutationObserver(() => {
     const prev = last;
-    // 動いている途中の要素は、その変位を含めずに今の位置を測る
-    for (const el of container.children) for (const a of el.getAnimations()) a.cancel();
+    // 動いている途中の要素は、その変位を含めずに今の位置を測る（出現の明るさの変化はそのまま続ける）
+    for (const el of container.children) for (const a of el.getAnimations()) if (a.id === 'move') a.cancel();
     measure();
-    if (!animationsOn()) return;
+    if (!shown || !settled() || !animationsOn()) return;
     const base = container.getBoundingClientRect();
     for (const [el, before] of prev)
       if (!last.has(el) && onScreen(base.top + before.y, before.h))
@@ -198,9 +217,11 @@ function animateReorder(container: HTMLElement) {
     for (const [el, now] of last) {
       if (!onScreen(base.top + now.y, now.h)) continue;
       const before = prev.get(el);
-      if (!before) el.animate([{ opacity: 0 }, { opacity: 1 }], REORDER_DURATION);
+      if (!before)
+        el.animate([{ filter: WHITE }, { filter: NORMAL }], { duration: ENTER_EXIT_DURATION, easing: 'ease-in' });
       else if (before.x !== now.x || before.y !== now.y)
         el.animate([{ transform: `translate(${before.x - now.x}px, ${before.y - now.y}px)` }, { transform: 'none' }], {
+          id: 'move',
           duration: REORDER_DURATION,
           easing: 'ease-out',
         });
@@ -219,12 +240,11 @@ function animateReorder(container: HTMLElement) {
 // ワールドにいる人・ゲーム内で private の人・ゲーム外（Web・モバイル）の人は別の行から並べる
 function FriendSection(p: { title: string; group?: string; list: Friend[] }) {
   const visible = () => (showOutside() ? p.list : p.list.filter(f => !outsideGame(f)));
+  // 空になっても入れ物は残す（最初の 1 枚が入ったときも出現として見せるため。空の間は CSS で詰める）
   const grid = (list: () => Friend[]) => (
-    <Show when={list().length}>
-      <div class="grid" ref={animateReorder}>
-        <For each={sortBy(list(), friendSort.specs())}>{f => <FriendCard f={f} />}</For>
-      </div>
-    </Show>
+    <div class="grid" ref={animateReorder}>
+      <For each={sortBy(list(), friendSort.specs())}>{f => <FriendCard f={f} />}</For>
+    </div>
   );
   return (
     <section>
@@ -365,7 +385,11 @@ function GroupList() {
 }
 
 export function App() {
-  onMount(() => load().catch(e => setState('error', (e as Error).message)));
+  onMount(() =>
+    load()
+      .then(() => setTimeout(() => setSettled(true), 1000))
+      .catch(e => setState('error', (e as Error).message)),
+  );
   createEffect(() => {
     const root = document.documentElement;
     if (theme() === 'system') delete root.dataset.theme;
