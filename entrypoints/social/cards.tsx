@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, onCleanup, Show } from 'solid-js';
+import { createEffect, createSignal, For, onCleanup, Show, untrack } from 'solid-js';
 import { forgetImage, resolveImage } from '@/lib/cache';
 import {
   img,
@@ -14,8 +14,7 @@ import {
   placeIcon,
   openInGame,
 } from '@/lib/vrchat';
-import { Reorder } from './motion';
-import { animationsOn } from './settings';
+import { canAnimate, Reorder } from './motion';
 import { byLoc, favClass, instanceOf, openDrawer, ownerOf, requestAvatar, setShown, state, worldOf } from './state';
 
 const OWNER_KIND_LABEL = {
@@ -110,7 +109,7 @@ function Capacity(p: { n: number; cap: number | undefined; stale?: boolean }) {
   let prev: number | undefined;
   createEffect(() => {
     const n = p.n;
-    if (prev !== undefined && n !== prev && animationsOn())
+    if (prev !== undefined && n !== prev && untrack(canAnimate))
       count?.animate([{ transform: 'scale(1.6)', color: n > prev ? '#43a047' : '#e53935' }, { transform: 'none' }], {
         duration: 900,
         easing: 'ease-out',

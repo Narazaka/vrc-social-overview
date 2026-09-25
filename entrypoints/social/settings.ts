@@ -25,8 +25,5 @@ export function persisted<T extends string | boolean>(name: string, initial: T, 
   return [get, save] as const;
 }
 
-// 変化（並びの入れ替わり・人数の増減）をアニメーションで見せるか。
-// 設定でオフにしたとき、OS で視差効果を減らしているとき、ページが隠れているときは動かさない
+// 変化（並びの入れ替わり・人数の増減）をアニメーションで見せるか（いつ動かすかは motion.tsx）
 export const [motion, setMotion] = persisted<boolean>('reorderAnimation', true);
-const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-export const animationsOn = () => motion() && !document.hidden && !reducedMotion.matches;
