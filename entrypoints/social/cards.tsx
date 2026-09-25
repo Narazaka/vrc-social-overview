@@ -55,27 +55,51 @@ export const LaunchButton = (p: { loc: string }) => (
 export function Img(p: { src: string | undefined; class?: string; onMissing?: () => void }) {
   const [visible, setVisible] = createSignal(false);
   const [src, setSrc] = createSignal<string>();
+  // どの段階にあるか（表示されないときに開発者ツールで data-img を見て切り分けるため）
+  const [phase, setPhase] = createSignal('offscreen');
   const observe = (el: HTMLImageElement) => watchVisibility(el, v => v && setVisible(true));
   createEffect(() => {
     const url = p.src;
     if (!visible()) return;
-    if (!url) return p.onMissing?.();
+    if (!url) {
+      setPhase('no-url');
+      return p.onMissing?.();
+    }
+    setPhase('resolving');
     let live = true;
     // 解決に失敗したら画像 API の URL をそのまま使う
     resolveImage(url).then(
-      u => live && setSrc(u),
-      () => live && setSrc(url),
+      u => {
+        if (!live) return;
+        setPhase('resolved');
+        setSrc(u);
+      },
+      () => {
+        if (!live) return;
+        setPhase('direct');
+        setSrc(url);
+      },
     );
     onCleanup(() => (live = false));
   });
   // 保存していたリダイレクト先が表示できなければ（署名 URL が使えなくなった等）、保存を捨てて画像 API の URL で取り直す
   const retry = () => {
     const url = p.src;
-    if (!url || src() === url) return;
+    if (!url || src() === url) return setPhase('error');
+    setPhase('retry');
     forgetImage(url);
     setSrc(url);
   };
-  return <img ref={observe} class={p.class} src={src()} onError={retry} />;
+  return (
+    <img
+      ref={observe}
+      class={p.class}
+      src={src()}
+      data-img={phase()}
+      onLoad={() => setPhase('loaded')}
+      onError={retry}
+    />
+  );
 }
 
 // ゲーム外（Web・モバイル）のフレンドは VRChat の慣例どおり輪郭だけの丸にする
