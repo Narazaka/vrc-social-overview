@@ -225,10 +225,13 @@ export function InstanceCard(p: { loc: string }) {
   return (
     <section class="card">
       <InstanceHead loc={p.loc} />
-      <div class="members">
-        <For each={members()}>{f => <Member f={f} />}</For>
-        <NonFriends loc={p.loc} />
-      </div>
+      {/* フレンドがいない（グループタブにだけ出る）インスタンスは人数だけで足りるので、他+N も出さない */}
+      <Show when={members().length}>
+        <div class="members">
+          <For each={members()}>{f => <Member f={f} />}</For>
+          <NonFriends loc={p.loc} />
+        </div>
+      </Show>
     </section>
   );
 }
