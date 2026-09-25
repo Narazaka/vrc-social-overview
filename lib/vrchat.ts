@@ -90,13 +90,16 @@ export function createLimiter(concurrency: number) {
 }
 const limited = createLimiter(3);
 
+// 途中のページでも 100 件未満が返ることがあるので、空のページが返るまで続ける（念のため回数に上限を設ける）
+const MAX_PAGES = 100;
 async function getAll<T>(path: string): Promise<T[]> {
   const all: T[] = [];
-  for (let offset = 0; ; offset += 100) {
+  for (let offset = 0; offset < MAX_PAGES * 100; offset += 100) {
     const page = await get<T[]>(`${path}&n=100&offset=${offset}`);
+    if (!page.length) break;
     all.push(...page);
-    if (page.length < 100) return all;
   }
+  return all;
 }
 
 // friends にはオフラインを含むフレンド全員の ID が入っている
@@ -104,7 +107,9 @@ export const fetchMe = () => get<{ id: string; displayName: string; friends: str
 // ponytail: ページ送りせず 1 回で取得（約 200 件は 1 回で返る）。取りこぼしが出たら offset でページ送りする
 export const fetchMyGroupIds = (userId: string) =>
   get<{ groupId: string }[]>(`/users/${userId}/groups`).then(gs => gs.map(g => g.groupId));
-export const fetchFriends = () => getAll<Friend>('/auth/user/friends?offline=false');
+// 取っている間に並びが変わるとページの境目で同じ人が重なりうるので、ID で重複を除く
+export const fetchFriends = () =>
+  getAll<Friend>('/auth/user/friends?offline=false').then(fs => [...new Map(fs.map(f => [f.id, f])).values()]);
 export const fetchFavorites = () => getAll<Favorite>('/favorites?type=friend');
 export const fetchFavoriteGroups = () => get<FavoriteGroup[]>('/favorite/groups?type=friend&n=50');
 export const fetchInstance = (loc: string) => limited(() => get<Instance>(`/instances/${loc}`));
