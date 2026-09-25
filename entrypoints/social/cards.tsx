@@ -56,6 +56,11 @@ function askLaunch(): Promise<boolean> {
       <button value="launch" class="primary">起動して入る</button>
     </form>`;
   document.body.append(dialog);
+  // ダイアログの外（背景）を押しても「やめる」として閉じる。背景を押したときもクリックの対象はダイアログ自身になるので、位置で見分ける
+  dialog.addEventListener('click', e => {
+    const r = dialog.getBoundingClientRect();
+    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dialog.close('');
+  });
   dialog.showModal();
   return new Promise(resolve =>
     dialog.addEventListener(
