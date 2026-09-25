@@ -62,11 +62,15 @@ nav button[aria-pressed='true'] {
   margin-left: 16px;
   color: var(--sub);
 }
+.animation-toggle {
+  margin-left: auto;
+  color: var(--sub);
+}
 .theme {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-left: auto;
+  margin-left: 16px;
   color: var(--sub);
 }
 .seg-group {
@@ -267,8 +271,9 @@ h2 {
   font-weight: bold;
   color: var(--text);
 }
-/* 現在人数は最大人数より目立たせる */
+/* 現在人数は最大人数より目立たせる（増減時に拡大して見せるので inline-block にしておく） */
 .cap b:first-child {
+  display: inline-block;
   font-size: 14px;
 }
 .bar {

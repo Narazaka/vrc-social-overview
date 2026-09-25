@@ -3,7 +3,7 @@ import { img, inPrivate, inWorld, outsideGame, ownerIdOf, type Friend } from '@/
 import { FriendCard, Img, InstanceCard, Member } from './cards';
 import { LogTab } from './log';
 import { Drawer } from './drawer';
-import { persisted } from './settings';
+import { animationsOn, motion, persisted, setMotion } from './settings';
 import { byLoc, instanceOf, load, loadGroupInstances, openDrawer, ownerOf, setState, state, worldOf } from './state';
 
 type SortKey<T> = (x: T) => number | string;
@@ -67,6 +67,76 @@ const [instanceReverse, setInstanceReverse] = persisted<boolean>('instanceRevers
 const [groupSort, setGroupSort] = persisted('groupSort', 'users', keysOf(GROUP_SORTS));
 const [groupReverse, setGroupReverse] = persisted<boolean>('groupReverse', false);
 
+// 並びが変わったとき（増減・並べ替え・移動）に、各要素を前の位置から今の位置へ滑らかに動かし（FLIP）、
+// 新しく現れた要素はふわっと出し、消えた要素はその場でふわっと消す。変化がどこで起きたか目で追えるようにするため。
+// 前の位置は、前回の変化の直後と、入れ物の大きさが変わったとき（折り返し位置の変化など）に測っておく
+const REORDER_DURATION = 300;
+type Box = { x: number; y: number; w: number; h: number };
+
+// 消えた要素の複製を、消える前にあった位置へ重ねて薄れさせる（元の要素はもう DOM から外れている）
+function fadeOutGhost(el: Element, at: Box) {
+  const ghost = el.cloneNode(true) as HTMLElement;
+  Object.assign(ghost.style, {
+    position: 'fixed',
+    left: `${at.x}px`,
+    top: `${at.y}px`,
+    width: `${at.w}px`,
+    height: `${at.h}px`,
+    margin: '0',
+    boxSizing: 'border-box',
+    pointerEvents: 'none',
+    zIndex: '5',
+  });
+  document.body.append(ghost);
+  ghost.animate([{ opacity: 1 }, { opacity: 0 }], REORDER_DURATION);
+  // 描画が止まっていてアニメーションが終わらなくても残らないよう、終わりはタイマーで決める
+  setTimeout(() => ghost.remove(), REORDER_DURATION);
+}
+
+function animateReorder(container: HTMLElement) {
+  let last = new Map<Element, Box>();
+  const measure = () => {
+    const base = container.getBoundingClientRect();
+    last = new Map(
+      [...container.children].map(el => {
+        const r = el.getBoundingClientRect();
+        return [el, { x: r.left - base.left, y: r.top - base.top, w: r.width, h: r.height }];
+      }),
+    );
+  };
+  // 画面外の要素は動かさない（数百枚あっても見えている分だけで済ませる）
+  const onScreen = (y: number, h: number) => y < innerHeight && y + h > 0;
+  const mutations = new MutationObserver(() => {
+    const prev = last;
+    // 動いている途中の要素は、その変位を含めずに今の位置を測る
+    for (const el of container.children) for (const a of el.getAnimations()) a.cancel();
+    measure();
+    if (!animationsOn()) return;
+    const base = container.getBoundingClientRect();
+    for (const [el, before] of prev)
+      if (!last.has(el) && onScreen(base.top + before.y, before.h))
+        fadeOutGhost(el, { ...before, x: base.left + before.x, y: base.top + before.y });
+    for (const [el, now] of last) {
+      if (!onScreen(base.top + now.y, now.h)) continue;
+      const before = prev.get(el);
+      if (!before) el.animate([{ opacity: 0 }, { opacity: 1 }], REORDER_DURATION);
+      else if (before.x !== now.x || before.y !== now.y)
+        el.animate([{ transform: `translate(${before.x - now.x}px, ${before.y - now.y}px)` }, { transform: 'none' }], {
+          duration: REORDER_DURATION,
+          easing: 'ease-out',
+        });
+    }
+  });
+  mutations.observe(container, { childList: true });
+  // 最初に表示されたときにも呼ばれるので、最初の位置もここで測る
+  const resize = new ResizeObserver(measure);
+  resize.observe(container);
+  onCleanup(() => {
+    mutations.disconnect();
+    resize.disconnect();
+  });
+}
+
 function SortControl<K extends string>(p: {
   sorts: Record<K, [string, unknown]>;
   key: K;
@@ -99,7 +169,7 @@ function FriendSection(p: { title: string; group?: string; list: Friend[]; sort:
   const visible = () => (showOutside() ? p.list : p.list.filter(f => !outsideGame(f)));
   const grid = (list: () => Friend[]) => (
     <Show when={list().length}>
-      <div class="grid">
+      <div class="grid" ref={animateReorder}>
         <For each={sortBy(list(), p.sort, p.reverse)}>{f => <FriendCard f={f} />}</For>
       </div>
     </Show>
@@ -181,7 +251,7 @@ function InstancesTab() {
           setReverse={setInstanceReverse}
         />
       </div>
-      <div class="grid">
+      <div class="grid" ref={animateReorder}>
         <For each={locs()}>{loc => <InstanceCard loc={loc} />}</For>
       </div>
       <div class="others">
@@ -264,7 +334,7 @@ function GroupList() {
                 <Img src={img(ownerOf(groupId)?.image, 64)} />
                 {ownerOf(groupId)?.name ?? groupId} ({locsOf(groupId).length})
               </h2>
-              <div class="grid">
+              <div class="grid" ref={animateReorder}>
                 <For each={locsOf(groupId)}>{loc => <InstanceCard loc={loc} />}</For>
               </div>
             </section>
@@ -364,6 +434,10 @@ export function App() {
               非表示
             </label>
           </span>
+          <label class="animation-toggle" title="並びの入れ替わりや人数の増減をアニメーションで見せる">
+            <input type="checkbox" checked={motion()} onChange={e => setMotion(e.currentTarget.checked)} />{' '}
+            変化のアニメーション
+          </label>
           <span class="theme">
             テーマ:
             <span class="seg">

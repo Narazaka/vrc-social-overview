@@ -14,6 +14,7 @@ import {
   placeIcon,
   openInGame,
 } from '@/lib/vrchat';
+import { animationsOn } from './settings';
 import { byLoc, favClass, instanceOf, openDrawer, ownerOf, requestAvatar, setShown, state, worldOf } from './state';
 
 const OWNER_KIND_LABEL = {
@@ -96,6 +97,18 @@ export function Member(p: { f: Friend }) {
 // cap はワールド情報がまだ無いと不明。stale は人数が未確定（前回の値やフレンドの増減からの推定で、取り直し待ち）
 function Capacity(p: { n: number; cap: number | undefined; stale?: boolean }) {
   const ratio = () => (p.cap ? Math.min(p.n / p.cap, 1) : 0);
+  // 人数が変わったら、増えたか減ったかの色で数字を一瞬大きくして知らせる
+  let count: HTMLElement | undefined;
+  let prev: number | undefined;
+  createEffect(() => {
+    const n = p.n;
+    if (prev !== undefined && n !== prev && animationsOn())
+      count?.animate([{ transform: 'scale(1.6)', color: n > prev ? '#43a047' : '#e53935' }, { transform: 'none' }], {
+        duration: 900,
+        easing: 'ease-out',
+      });
+    prev = n;
+  });
   return (
     <span
       class="cap"
@@ -103,7 +116,10 @@ function Capacity(p: { n: number; cap: number | undefined; stale?: boolean }) {
       title={`${p.n} / ${p.cap ?? '?'} 人${p.stale ? '（未確定・更新待ち）' : ''}`}
     >
       <span>
-        <b class={sizeClass(p.n)}>{p.n}</b>/<b class={p.cap ? sizeClass(p.cap) : ''}>{p.cap ?? '?'}</b>
+        <b ref={el => (count = el)} class={sizeClass(p.n)}>
+          {p.n}
+        </b>
+        /<b class={p.cap ? sizeClass(p.cap) : ''}>{p.cap ?? '?'}</b>
       </span>
       <span class="bar">
         <i
