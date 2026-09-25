@@ -755,3 +755,45 @@ h2[class^='fav-'] {
   height: 80px;
   border-radius: 50%;
 }
+/* ゲームで開く前の確認 */
+dialog.confirm {
+  max-width: 400px;
+  padding: 16px 20px;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px var(--shadow);
+}
+dialog.confirm::backdrop {
+  background: rgb(0 0 0 / 0.4);
+}
+dialog.confirm p {
+  margin: 0 0 8px;
+}
+dialog.confirm .confirm-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--title);
+}
+dialog.confirm form {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+dialog.confirm button {
+  font: inherit;
+  padding: 5px 14px;
+  color: var(--text);
+  background: var(--chip);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  cursor: pointer;
+}
+dialog.confirm button.primary {
+  color: white;
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: bold;
+}

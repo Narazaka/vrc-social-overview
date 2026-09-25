@@ -166,6 +166,18 @@ const fetchShortName = (loc: string) =>
     s => s.secureName ?? s.shortName,
   );
 
+// 自分がゲーム内にいるか。アプリの起動そのものは分からないので、このアカウントでゲームにログインしているかで代える。
+// 押すたびに取るのは多いので、しばらく使い回す
+const IN_GAME_TTL = 30 * 1000;
+let inGameCache: { at: number; value: boolean } | undefined;
+export async function isInGame() {
+  if (inGameCache && Date.now() - inGameCache.at < IN_GAME_TTL) return inGameCache.value;
+  // ゲーム外（Web・モバイル）からのログインだけなら world は offline になる
+  const world = (await get<{ presence?: { world?: string } }>('/auth/user')).presence?.world ?? '';
+  inGameCache = { at: Date.now(), value: world !== '' && world !== 'offline' };
+  return inGameCache.value;
+}
+
 // VRChat が起動していればゲーム内でインスタンスの詳細を開き（招待は送らない）、起動していなければ起動してそのインスタンスに入る。
 // Public 系は shortName が無くても入れるので取らない
 export async function openInGame(loc: string) {

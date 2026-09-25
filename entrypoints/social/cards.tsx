@@ -13,6 +13,7 @@ import {
   outsideGame,
   placeIcon,
   openInGame,
+  isInGame,
 } from '@/lib/vrchat';
 import { canAnimate, Reorder } from './motion';
 import { byLoc, favClass, instanceOf, openDrawer, ownerOf, requestAvatar, setShown, state, worldOf } from './state';
@@ -43,9 +44,40 @@ function watchVisibility(el: Element, fn: (visible: boolean) => void) {
 
 const LAUNCH_TITLE = 'クリックでゲームで開く（招待は送りません）';
 
+// VRChat を起動してよいかを確かめる。閉じたときの returnValue で答えを返す（Esc で閉じたら「やめる」）
+function askLaunch(): Promise<boolean> {
+  const dialog = document.createElement('dialog');
+  dialog.className = 'confirm';
+  dialog.innerHTML = `
+    <p class="confirm-title">VRChat が起動していないようです</p>
+    <p>このアカウントでゲーム内にいません。VRChat を起動して、このインスタンスに入りますか？</p>
+    <form method="dialog">
+      <button value="" autofocus>やめる</button>
+      <button value="launch" class="primary">起動して入る</button>
+    </form>`;
+  document.body.append(dialog);
+  dialog.showModal();
+  return new Promise(resolve =>
+    dialog.addEventListener(
+      'close',
+      () => {
+        resolve(dialog.returnValue === 'launch');
+        dialog.remove();
+      },
+      { once: true },
+    ),
+  );
+}
+
+// ゲームで開く。ゲーム内でなければ、意図せず VRChat が起動しないよう確かめる（確かめられなければそのまま開く）
+async function launch(loc: string) {
+  if (!(await isInGame().catch(() => true)) && !(await askLaunch())) return;
+  await openInGame(loc);
+}
+
 // インスタンス種別の表示が無い詳細パネル用
 export const LaunchButton = (p: { loc: string }) => (
-  <button class="launch" title={LAUNCH_TITLE} onClick={() => void openInGame(p.loc)}>
+  <button class="launch" title={LAUNCH_TITLE} onClick={() => void launch(p.loc)}>
     ▶ ゲームで開く
   </button>
 );
@@ -194,7 +226,7 @@ function InstanceHead(p: { loc: string; compact?: boolean }) {
         title={LAUNCH_TITLE}
         onClick={e => {
           e.stopPropagation();
-          void openInGame(p.loc);
+          void launch(p.loc);
         }}
       >
         <Img class={`thumb ws-${world() && worldStatus(world()!)?.[1]}`} src={img(world()?.thumbnailImageUrl, 128)} />
@@ -298,7 +330,7 @@ export function FriendCard(p: { f: Friend }) {
           onClick={e => {
             if (!inWorld(p.f)) return;
             e.stopPropagation();
-            void openInGame(p.f.location);
+            void launch(p.f.location);
           }}
         >
           <Img src={img(p.f.currentAvatarImageUrl, 128)} onMissing={() => requestAvatar(p.f.id)} />
