@@ -196,6 +196,12 @@ export const fetchGroup = (id: string) => limited(() => get<Group>(`/groups/${id
 
 export const fetchWorld = (worldId: string) => limited(() => get<WorldDetail>(`/worlds/${worldId}`));
 
+// 加入しているグループのインスタンス（全グループ分をまとめて返す。ワールド情報付き）。
+// グループ単位の API（/users/{自分}/instances/groups/{groupId}）より 1 グループあたり数件少ないことがある
+export type GroupInstance = { location: string; worldId: string; userCount: number; world: World };
+export const fetchGroupInstances = (userId: string) =>
+  limited(() => get<{ instances: GroupInstance[] }>(`/users/${userId}/instances/groups`)).then(r => r.instances);
+
 // フレンド以外のユーザーは currentAvatarImageUrl が返らないので iconUrl で代用する
 export function fetchOwner(id: string): Promise<Owner> {
   if (id.startsWith('grp_'))

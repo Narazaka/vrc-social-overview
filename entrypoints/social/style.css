@@ -681,6 +681,34 @@ h2[class^='fav-'] {
   font-weight: bold;
   color: light-dark(#9a6700, #ffcc4d);
 }
+/* グループタブの見出し（グループのアイコンと名前） */
+.group-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.group-title img {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+.modes .refresh {
+  font: inherit;
+  color: var(--text);
+  padding: 1px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--card);
+  cursor: pointer;
+}
+.modes .refresh:disabled {
+  color: var(--sub);
+  cursor: default;
+}
+.empty {
+  padding: 8px;
+  color: var(--sub);
+}
 /* グループの詳細パネル */
 .group-banner {
   display: block;

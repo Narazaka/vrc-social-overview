@@ -7,6 +7,7 @@ import {
   fetchFavoriteGroups,
   fetchFavorites,
   fetchFriends,
+  fetchGroupInstances,
   fetchInstance,
   fetchWorld,
   fetchMe,
@@ -74,6 +75,11 @@ export const [state, setState] = createStore({
   movedAt: {} as Record<string, number>,
   // Pipeline で受け取ったイベント（新しい順、ページを開いてからの分のみ）
   eventLog: [] as LogEntry[],
+  // 加入しているグループのインスタンスの location。取得するまでは undefined
+  groupInstances: undefined as string[] | undefined,
+  // グループのインスタンスを最後に取った時刻と、取得中かどうか
+  groupInstancesAt: 0,
+  groupInstancesLoading: false,
 });
 
 // 詳細パネルで表示中のユーザー（usr_）またはワールド（wrld_）
@@ -383,9 +389,36 @@ setAuthLostHandler(() => {
   setState({ loginRequired: true, live: undefined });
 });
 
+// 加入しているグループのインスタンスを取る。前回から minAge 以上経っていなければ取り直さない
+let myId: string | undefined;
+export async function loadGroupInstances(minAge: number) {
+  if (!myId || state.groupInstancesLoading || Date.now() - state.groupInstancesAt < minAge) return;
+  setState({ groupInstancesAt: Date.now(), groupInstancesLoading: true });
+  try {
+    const list = await track(fetchGroupInstances(myId));
+    for (const i of list) {
+      setWorld(i.worldId, i.world);
+      setState('instances', i.location, { userCount: i.userCount, stale: false });
+      // フレンドがいるインスタンスは、人数を取ったばかりとして記録し、すぐに取り直さないようにする
+      const members = byLoc().get(i.location);
+      if (members) instanceCache.set(i.location, { userCount: i.userCount, members: memberKey(members) });
+      syncOwner(i.location);
+    }
+    setState(
+      'groupInstances',
+      list.map(i => i.location),
+    );
+  } catch (e) {
+    setState({ groupInstancesAt: 0, groupInstances: state.groupInstances ?? [], error: (e as Error).message });
+  } finally {
+    setState('groupInstancesLoading', false);
+  }
+}
+
 export async function load() {
   try {
     const me = await fetchMe();
+    myId = me.id;
     allFriendIds = new Set(me.friends);
     myGroupIds = new Set(await fetchMyGroupIds(me.id));
     setState('me', me.displayName);

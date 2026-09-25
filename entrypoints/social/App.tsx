@@ -1,10 +1,10 @@
-import { createEffect, For, onMount, Show } from 'solid-js';
-import { inPrivate, inWorld, outsideGame, type Friend } from '@/lib/vrchat';
-import { FriendCard, InstanceCard, Member } from './cards';
+import { createEffect, createMemo, For, onCleanup, onMount, Show } from 'solid-js';
+import { img, inPrivate, inWorld, outsideGame, ownerIdOf, type Friend } from '@/lib/vrchat';
+import { FriendCard, Img, InstanceCard, Member } from './cards';
 import { LogTab } from './log';
 import { Drawer } from './drawer';
 import { persisted } from './settings';
-import { byLoc, instanceOf, load, setState, state } from './state';
+import { byLoc, instanceOf, load, loadGroupInstances, openDrawer, ownerOf, setState, state } from './state';
 
 type SortKey<T> = (x: T) => number;
 
@@ -31,7 +31,12 @@ const INSTANCE_SORTS = {
 const keysOf = <K extends string>(o: Record<K, unknown>) => Object.keys(o) as K[];
 
 // 表示設定（開き直しても保つ）
-const [tab, setTab] = persisted<'friends' | 'instances' | 'log'>('tab', 'friends', ['friends', 'instances', 'log']);
+const [tab, setTab] = persisted<'friends' | 'instances' | 'groups' | 'log'>('tab', 'friends', [
+  'friends',
+  'instances',
+  'groups',
+  'log',
+]);
 // ゲーム外（Web・モバイル）のフレンドを別の行に分けて出すか、隠すか
 const [outsideMode, setOutsideMode] = persisted<'separate' | 'hidden'>('outsideMode', 'separate', [
   'separate',
@@ -180,6 +185,70 @@ function InstancesTab() {
   );
 }
 
+// グループのインスタンスの変化は Pipeline では届かないので、開き直したとき（前回から 1 分以上経っていれば）と、
+// 開いている間は 5 分ごと（ページが隠れている間は除く）に取り直す
+const GROUP_REOPEN_REFRESH = 60 * 1000;
+const GROUP_AUTO_REFRESH = 5 * 60 * 1000;
+
+function GroupsTab() {
+  // ログイン直後に開いていた場合は自分の情報が取れてから取る
+  createEffect(() => {
+    if (state.me) void loadGroupInstances(GROUP_REOPEN_REFRESH);
+  });
+  const timer = setInterval(() => {
+    if (!document.hidden) void loadGroupInstances(GROUP_AUTO_REFRESH);
+  }, 60 * 1000);
+  onCleanup(() => clearInterval(timer));
+  return (
+    <>
+      <div class="modes">
+        <button
+          class="refresh"
+          disabled={state.groupInstancesLoading || !state.me}
+          onClick={() => void loadGroupInstances(0)}
+        >
+          {state.groupInstancesLoading ? '更新中…' : '更新'}
+        </button>
+        <Show when={state.groupInstancesAt}>
+          {at => <span>最終更新 {new Date(at()).toLocaleTimeString()}（開いている間は 5 分ごとに自動更新）</span>}
+        </Show>
+      </div>
+      <GroupList />
+    </>
+  );
+}
+
+// 加入しているグループのインスタンスを、グループごとに人数の多い順で並べる
+function GroupList() {
+  const usersOf = (locs: string[]) => locs.reduce((n, loc) => n + Math.max(usersIn(loc), 0), 0);
+  const locsOf = (groupId: string) =>
+    (state.groupInstances ?? []).filter(loc => ownerIdOf(loc) === groupId).toSorted((a, b) => usersIn(b) - usersIn(a));
+  const groups = createMemo(() =>
+    [...new Set((state.groupInstances ?? []).map(loc => ownerIdOf(loc)!))].toSorted(
+      (a, b) => usersOf(locsOf(b)) - usersOf(locsOf(a)),
+    ),
+  );
+  return (
+    <Show when={state.groupInstances} fallback={<p class="empty">読み込み中…</p>}>
+      <Show when={groups().length} fallback={<p class="empty">加入しているグループのインスタンスはありません</p>}>
+        <For each={groups()}>
+          {groupId => (
+            <section>
+              <h2 class="group-title clickable" onClick={() => openDrawer(groupId)}>
+                <Img src={img(ownerOf(groupId)?.image, 64)} />
+                {ownerOf(groupId)?.name ?? groupId} ({locsOf(groupId).length})
+              </h2>
+              <div class="grid">
+                <For each={locsOf(groupId)}>{loc => <InstanceCard loc={loc} />}</For>
+              </div>
+            </section>
+          )}
+        </For>
+      </Show>
+    </Show>
+  );
+}
+
 export function App() {
   onMount(() => load().catch(e => setState('error', (e as Error).message)));
   createEffect(() => {
@@ -242,6 +311,9 @@ export function App() {
           <button aria-pressed={tab() === 'instances'} onClick={() => setTab('instances')}>
             インスタンス
           </button>
+          <button aria-pressed={tab() === 'groups'} onClick={() => setTab('groups')}>
+            グループ
+          </button>
           <button aria-pressed={tab() === 'log'} onClick={() => setTab('log')}>
             イベント ({state.eventLog.length})
           </button>
@@ -285,6 +357,9 @@ export function App() {
           </Show>
           <Show when={tab() === 'instances'}>
             <InstancesTab />
+          </Show>
+          <Show when={tab() === 'groups'}>
+            <GroupsTab />
           </Show>
           <Show when={tab() === 'log'}>
             <LogTab />
