@@ -32,9 +32,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      # Chrome ウェブストアへ新しい版をアップロードして審査に出す（審査に通れば公開される）
-      - run: pnpm wxt submit --chrome-zip .output/*-chrome.zip
+      # Chrome ウェブストアと Firefox のアドオンストアへ新しい版をアップロードして審査に出す（審査に通れば公開される）。
+      # Firefox は審査でソースから再ビルドするので、ソースの zip も渡す
+      - run: >-
+          pnpm wxt submit
+          --chrome-zip .output/*-chrome.zip
+          --firefox-zip .output/*-firefox.zip
+          --firefox-sources-zip .output/*-sources.zip
         env:
+          FIREFOX_CHANNEL: listed
+          FIREFOX_EXTENSION_ID: ${{ secrets.FIREFOX_EXTENSION_ID }}
+          FIREFOX_JWT_ISSUER: ${{ secrets.FIREFOX_JWT_ISSUER }}
+          FIREFOX_JWT_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
           CHROME_API_VERSION: v2
           CHROME_SKIP_SUBMIT_REVIEW: 'false'
           CHROME_CANCEL_PENDING: 'false'
