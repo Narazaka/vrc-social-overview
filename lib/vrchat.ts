@@ -103,11 +103,9 @@ async function getAll<T>(path: string): Promise<T[]> {
   return all;
 }
 
-// friends にはオフラインを含むフレンド全員の ID が入っている
-export const fetchMe = () => get<{ id: string; displayName: string; friends: string[] }>('/auth/user');
-// ponytail: ページ送りせず 1 回で取得（約 200 件は 1 回で返る）。取りこぼしが出たら offset でページ送りする
-export const fetchMyGroupIds = (userId: string) =>
-  get<{ groupId: string }[]>(`/users/${userId}/groups`).then(gs => gs.map(g => g.groupId));
+// friends にはオフラインを含むフレンド全員の ID、presence.groups には加入しているグループ全部の ID が入っている
+export const fetchMe = () =>
+  get<{ id: string; displayName: string; friends: string[]; presence?: { groups?: string[] } }>('/auth/user');
 // 取っている間に並びが変わるとページの境目で同じ人が重なりうるので、ID で重複を除く
 export const fetchFriends = () =>
   getAll<Friend>('/auth/user/friends?offline=false').then(fs => [...new Map(fs.map(f => [f.id, f])).values()]);

@@ -11,7 +11,6 @@ import {
   fetchInstance,
   fetchWorld,
   fetchMe,
-  fetchMyGroupIds,
   fetchOwner,
   inWorld,
   ownerIdOf,
@@ -431,7 +430,7 @@ export async function load() {
     const me = await fetchMe();
     myId = me.id;
     allFriendIds = new Set(me.friends);
-    myGroupIds = new Set(await fetchMyGroupIds(me.id));
+    myGroupIds = new Set(me.presence?.groups ?? []);
     setState('me', me.displayName);
   } catch (e) {
     // ログイン切れは上のハンドラーが表示を切り替える。それ以外（通信エラーなど）はエラーとして出す
