@@ -228,7 +228,14 @@ function syncOwner(loc: string) {
 // 見えていない間は保存値からの推定だけ出しておき、見えたときに取る。ページが隠れている間も取らない
 const shownCount = new Map<string, number>();
 const pendingLocs = new Set<string>();
-const isShown = (loc: string) => !document.hidden && (shownCount.get(loc) ?? 0) > 0;
+// 人数で並べているときは、画面の外のインスタンスも取る（見えている分だけだと並びが正しくならない）
+let countsForAll = false;
+const isShown = (loc: string) => !document.hidden && (countsForAll || (shownCount.get(loc) ?? 0) > 0);
+export function setCountsForAll(on: boolean) {
+  if (on === countsForAll) return;
+  countsForAll = on;
+  if (on) for (const loc of pendingLocs) syncLoc(loc);
+}
 
 // 同じインスタンスが一覧に複数回出ることがあるので、見えている表示の数を数える
 export function setShown(loc: string, shown: boolean) {

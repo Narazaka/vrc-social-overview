@@ -5,7 +5,18 @@ import { LogTab } from './log';
 import { Drawer } from './drawer';
 import { Reorder, setSettled } from './motion';
 import { motion, persisted, setMotion } from './settings';
-import { byLoc, instanceOf, load, loadGroupInstances, openDrawer, ownerOf, setState, state, worldOf } from './state';
+import {
+  byLoc,
+  instanceOf,
+  load,
+  loadGroupInstances,
+  openDrawer,
+  ownerOf,
+  setCountsForAll,
+  setState,
+  state,
+  worldOf,
+} from './state';
 
 type SortKey<T> = (x: T) => number | string;
 // 並びの条件（キーと逆順かどうか）を優先順に並べたもの
@@ -108,7 +119,7 @@ const Ctl = (p: { label: string; children: JSX.Element }) => (
 );
 
 // 並びの設定。第 1 条件で同じだったものを第 2 条件で並べ、それぞれ逆順にできる（開き直しても保つ）
-function sortSetting<T, K extends string>(name: string, sorts: Record<K, [string, SortKey<T>]>, initial: K) {
+function sortSetting<T, K extends string>(name: string, sorts: Record<K, [string, SortKey<T>]>, initial: NoInfer<K>) {
   const keys = keysOf(sorts);
   const [key, setKey] = persisted<K>(`${name}Sort`, initial, keys);
   const [reverse, setReverse] = persisted<boolean>(`${name}Reverse`, false);
@@ -141,7 +152,9 @@ function sortSetting<T, K extends string>(name: string, sorts: Record<K, [string
       </Ctl>
     </>
   );
-  return { specs, Control };
+  // 第 1・第 2 条件のどちらかに使っているか
+  const uses = (k: K) => key() === k || second() === k;
+  return { specs, Control, uses };
 }
 const friendSort = sortSetting('friend', FRIEND_SORTS, 'default');
 const instanceSort = sortSetting('instance', INSTANCE_SORTS, 'friends');
@@ -315,6 +328,13 @@ export function App() {
     if (theme() === 'system') delete root.dataset.theme;
     else root.dataset.theme = theme();
   });
+  // 表示中のタブがインスタンスの人数で並べているときは、画面の外のインスタンスの人数も取る
+  // （グループタブはグループのインスタンスの取得で全部の人数が分かる）
+  createEffect(() =>
+    setCountsForAll(
+      (tab() === 'friends' && friendSort.uses('users')) || (tab() === 'instances' && instanceSort.uses('users')),
+    ),
+  );
   const loading = () => state.progress.done < state.progress.total;
   const header = () => {
     if (!state.me) return '読み込み中…';
