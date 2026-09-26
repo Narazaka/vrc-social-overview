@@ -815,3 +815,23 @@ dialog.confirm button.primary {
   font-weight: 600;
   color: var(--text);
 }
+/* 出現・消滅のときに要素に重ねる白・黒の板（motion.tsx が不透明度を動かす） */
+[data-flash] {
+  position: relative;
+  /* 入った直後は描画を省く判定（.card の content-visibility）が決まっておらず、板のアニメーションが効かないので外す */
+  content-visibility: visible;
+}
+[data-flash]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+}
+[data-flash='enter']::after {
+  background: white;
+}
+[data-flash='exit']::after {
+  background: black;
+}

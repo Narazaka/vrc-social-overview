@@ -13,10 +13,16 @@ import { state } from './state';
 const MOVE_DURATION = 300;
 const ENTER_DURATION = 1200;
 const EXIT_DURATION = 800;
-// コントラストを 0 にすると一面の灰色になり、そこから明るさで真っ白・真っ黒にできる
-const NORMAL = 'contrast(1) brightness(1)';
-const WHITE = 'contrast(0) brightness(2)';
-const BLACK = 'contrast(0) brightness(0)';
+// 白・黒は要素の上に重ねた板（CSS の [data-flash]::after）の不透明度で出す。filter で要素そのものの色を変えると
+// 毎フレーム描き直しになり重い（GPU を使うゲームと同時だと引っかかる）が、不透明度だけなら描画の最後の合成で済む
+function flash(el: Element, kind: 'enter' | 'exit', keyframes: Keyframe[], options: KeyframeAnimationOptions) {
+  const target = el as HTMLElement;
+  target.dataset.flash = kind;
+  target.animate(keyframes, { ...options, pseudoElement: '::after' });
+  setTimeout(() => {
+    if (target.dataset.flash === kind) delete target.dataset.flash;
+  }, Number(options.duration));
+}
 
 // ページを開いて一覧がそろうまでは、出そろう様子を出現として見せない
 const [settled, setSettled] = createSignal(false);
@@ -73,27 +79,21 @@ const onScreen = (el: Element) => {
 
 function enter(el: Element) {
   if (!el.isConnected || !onScreen(el)) return;
-  el.animate(
-    [
-      { filter: WHITE, opacity: 0 },
-      { filter: WHITE, opacity: 1, offset: 0.1 },
-      { filter: NORMAL, opacity: 1 },
-    ],
-    { duration: ENTER_DURATION, easing: 'ease-in' },
-  );
+  el.animate([{ opacity: 0 }, { opacity: 1, offset: 0.1 }, { opacity: 1 }], ENTER_DURATION);
+  flash(el, 'enter', [{ opacity: 1 }, { opacity: 0 }], { duration: ENTER_DURATION, easing: 'ease-in' });
 }
 
 function exit(el: Element, done: () => void) {
   // 消えかけの要素はもう操作させない
   (el as HTMLElement).style.pointerEvents = 'none';
-  el.animate(
-    [
-      { filter: NORMAL, opacity: 1 },
-      { filter: BLACK, opacity: 1, offset: 0.6 },
-      { filter: BLACK, opacity: 0 },
-    ],
-    { duration: EXIT_DURATION, fill: 'forwards' },
-  );
+  flash(el, 'exit', [{ opacity: 0 }, { opacity: 1, offset: 0.6 }, { opacity: 1 }], {
+    duration: EXIT_DURATION,
+    fill: 'forwards',
+  });
+  el.animate([{ opacity: 1 }, { opacity: 1, offset: 0.6 }, { opacity: 0 }], {
+    duration: EXIT_DURATION,
+    fill: 'forwards',
+  });
   // 描画が止まっていてアニメーションが終わらなくても残らないよう、取り除くのはタイマーで決める
   setTimeout(done, EXIT_DURATION);
 }
