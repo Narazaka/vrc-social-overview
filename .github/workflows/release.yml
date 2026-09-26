@@ -31,3 +31,14 @@ jobs:
       - run: gh release create "$GITHUB_REF_NAME" --generate-notes .output/*.zip
         env:
           GH_TOKEN: ${{ github.token }}
+
+      # Chrome ウェブストアへ新しい版をアップロードして審査に出す（審査に通れば公開される）
+      - run: pnpm wxt submit --chrome-zip .output/*-chrome.zip
+        env:
+          CHROME_API_VERSION: v2
+          CHROME_SKIP_SUBMIT_REVIEW: 'false'
+          CHROME_CANCEL_PENDING: 'false'
+          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CHROME_PUBLISHER_ID: ${{ secrets.CHROME_PUBLISHER_ID }}
+          CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL: ${{ secrets.CHROME_SERVICE_ACCOUNT_CLIENT_EMAIL }}
+          CHROME_SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.CHROME_SERVICE_ACCOUNT_PRIVATE_KEY }}
