@@ -797,3 +797,21 @@ dialog.confirm button.primary {
   border-color: var(--accent);
   font-weight: bold;
 }
+/* インスタンス番号（一回り小さく）と、付けられていればインスタンスの名前。長い名前は切り詰める */
+.inst-name {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  font-size: 10px;
+  color: var(--sub);
+}
+.inst-name b {
+  max-width: 12em;
+  font-size: 12px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  color: var(--text);
+}

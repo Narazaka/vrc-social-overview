@@ -32,7 +32,8 @@ const worldCache = ttlStore<World>('worlds', 2000);
 // 人数は流動的なので短時間だけ使い回す。members は取得時にそのインスタンスにいたフレンドで、
 // 顔ぶれが変わっていたら人数も変わっているはずなので TTL 内でも取り直す
 const INSTANCE_TTL = MINUTE;
-const instanceCache = ttlStore<{ userCount: number; members: string }>('instances', 500);
+// name はインスタンスに付けられた名前（そのインスタンスの間は変わらないので人数と一緒に保存する）
+const instanceCache = ttlStore<{ userCount: number; members: string; name?: string }>('instances', 500);
 // オーナーの名前・アイコンは変わることがまれ
 const OWNER_TTL = DAY;
 const ownerCache = ttlStore<Owner>('owners', 2000);
@@ -53,7 +54,7 @@ export type LogEntry = { at: number; type: string; userId: string; name: string;
 const MAX_LOG = 500;
 
 // stale: 人数が未確定（前回の値や推定値を出していて、取り直し中または取り直し待ち）
-export type InstanceState = { userCount: number; stale?: boolean };
+export type InstanceState = { userCount: number; stale?: boolean; name?: string };
 
 export const [state, setState] = createStore({
   me: undefined as string | undefined,
@@ -125,8 +126,9 @@ function refreshInstance(loc: string, members: string) {
   track(fetchInstance(loc).finally(() => inFlight.delete(loc))).then(
     i => {
       // ストアの setState はオブジェクトをマージするので stale を明示して消す
-      setState('instances', loc, { userCount: i.userCount, stale: false });
-      instanceCache.set(loc, { userCount: i.userCount, members });
+      const name = i.displayName || undefined;
+      setState('instances', loc, { userCount: i.userCount, stale: false, name });
+      instanceCache.set(loc, { userCount: i.userCount, members, name });
       setWorld(worldIdOf(loc), i.world);
     },
     e => setState('instances', loc, { error: (e as Error).message }),
@@ -165,14 +167,14 @@ const refreshScheduled = new Set<string>();
 function applyCachedCount(loc: string, members: Friend[], key: string): boolean {
   const cached = instanceCache.fresh(loc, INSTANCE_TTL);
   if (cached?.members === key) {
-    setState('instances', loc, { userCount: cached.userCount, stale: false });
+    setState('instances', loc, { userCount: cached.userCount, stale: false, name: cached.name });
     return true;
   }
   const old = instanceCache.any(loc);
   // 顔ぶれ（members）を保存するようになる前の記録が残っていることがあるので、無ければ推定しない
   if (typeof old?.members === 'string') {
     const estimate = old.userCount + members.length - old.members.split(',').length;
-    setState('instances', loc, { userCount: Math.max(estimate, members.length), stale: true });
+    setState('instances', loc, { userCount: Math.max(estimate, members.length), stale: true, name: old.name });
   }
   return false;
 }
@@ -406,10 +408,11 @@ export async function loadGroupInstances(minAge: number) {
     const list = await track(fetchGroupInstances(myId));
     for (const i of list) {
       setWorld(i.worldId, i.world);
-      setState('instances', i.location, { userCount: i.userCount, stale: false });
+      const name = i.displayName || undefined;
+      setState('instances', i.location, { userCount: i.userCount, stale: false, name });
       // フレンドがいるインスタンスは、人数を取ったばかりとして記録し、すぐに取り直さないようにする
       const members = byLoc().get(i.location);
-      if (members) instanceCache.set(i.location, { userCount: i.userCount, members: memberKey(members) });
+      if (members) instanceCache.set(i.location, { userCount: i.userCount, members: memberKey(members), name });
       syncOwner(i.location);
     }
     setState(

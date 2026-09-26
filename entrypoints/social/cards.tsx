@@ -3,6 +3,7 @@ import { forgetImage, resolveImage } from '@/lib/cache';
 import {
   img,
   inWorld,
+  instanceNumberOf,
   instanceType,
   ownerIdOf,
   sizeClass,
@@ -256,6 +257,13 @@ function InstanceHead(p: { loc: string; compact?: boolean }) {
         </div>
         <div class="meta">
           <span class={`badge ${type()[1]}`}>{type()[0]}</span>
+          <span
+            class="inst-name"
+            title={`インスタンス #${instanceNumberOf(p.loc)}${inst()?.name ? ` ${inst()!.name}` : ''}`}
+          >
+            #{instanceNumberOf(p.loc)}
+            <Show when={inst()?.name}>{name => <b>{name()}</b>}</Show>
+          </span>
           <Show when={inst()}>{i => <Capacity n={i().userCount} cap={world()?.capacity} stale={i().stale} />}</Show>
           <Show when={ownerId() ? ownerOf(ownerId()!) : undefined}>
             {o => (

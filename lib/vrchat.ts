@@ -19,7 +19,8 @@ export type World = {
   capacity: number;
   tags: string[];
 };
-export type Instance = { userCount: number; capacity: number; world: World };
+// displayName: インスタンスに付けられた名前（付いていなければ空か null）
+export type Instance = { userCount: number; capacity: number; world: World; displayName?: string | null };
 export type Owner = { name: string; image: string };
 export type Favorite = { favoriteId: string; tags: string[] };
 export type FavoriteGroup = { name: string; displayName: string };
@@ -215,7 +216,13 @@ export const fetchWorld = (worldId: string) => limited(() => get<WorldDetail>(`/
 
 // 加入しているグループのインスタンス（全グループ分をまとめて返す。ワールド情報付き）。
 // グループ単位の API（/users/{自分}/instances/groups/{groupId}）より 1 グループあたり数件少ないことがある
-export type GroupInstance = { location: string; worldId: string; userCount: number; world: World };
+export type GroupInstance = {
+  location: string;
+  worldId: string;
+  userCount: number;
+  world: World;
+  displayName?: string | null;
+};
 export const fetchGroupInstances = (userId: string) =>
   limited(() => get<{ instances: GroupInstance[] }>(`/users/${userId}/instances/groups`)).then(r => r.instances);
 
@@ -265,6 +272,8 @@ export function placeIcon(f: Friend): [string, string] | undefined {
   return undefined;
 }
 export const worldIdOf = (loc: string) => loc.split(':')[0]!;
+// インスタンス番号（wrld_…:12345~… の 12345）
+export const instanceNumberOf = (loc: string) => loc.split(':')[1]?.split('~')[0] ?? '';
 export const ownerIdOf = (loc: string) => loc.match(/\(((?:usr|grp)_[^)]+)\)/)?.[1];
 
 // [表示名, 色分け用のキー]
