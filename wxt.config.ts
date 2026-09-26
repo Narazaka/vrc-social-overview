@@ -23,4 +23,6 @@ export default defineConfig({
   },
   // AMO の審査で読める出力にするため minify しない
   vite: () => ({ build: { minify: false } }),
+  // AMO に出すソースの zip には、ビルドに要らないストア掲載用のスクリーンショットを入れない
+  zip: { excludeSources: ['assets/store/**'] },
 });
